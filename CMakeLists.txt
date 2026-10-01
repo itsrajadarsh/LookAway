@@ -9,7 +9,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Network)
 
 set(SOURCES
     src/main.cpp
@@ -27,6 +27,8 @@ set(SOURCES
     src/MainWindow.cpp
     src/CustomPresetDialog.h
     src/CustomPresetDialog.cpp
+    src/FullscreenDetector.h
+    src/FullscreenDetector.cpp
     resources/resources.qrc
 )
 
@@ -35,6 +37,7 @@ add_executable(LookAway ${SOURCES})
 target_link_libraries(LookAway PRIVATE
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::Network
 )
 
 if(WIN32)

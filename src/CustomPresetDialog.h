@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QLineEdit>
+#include <QSpinBox>
 #include <QComboBox>
 #include <QPushButton>
 #include "SettingsManager.h"
@@ -21,15 +22,15 @@ private slots:
 private:
     void setupUi();
     void applyTheme();
-    int durationToSeconds(QComboBox* valCombo, QComboBox* unitCombo) const;
-    void secondsToUi(int totalSeconds, QComboBox* valCombo, QComboBox* unitCombo);
+    int durationToSeconds(QSpinBox* valSpin, QComboBox* unitCombo) const;
+    void secondsToUi(int totalSeconds, QSpinBox* valSpin, QComboBox* unitCombo);
 
     bool m_isEditing;
     const CustomPreset* m_initialPreset;
     QLineEdit* m_editName;
-    QComboBox* m_comboWorkVal;
+    QSpinBox* m_spinWorkVal;
     QComboBox* m_comboWorkUnit;
-    QComboBox* m_comboBreakVal;
+    QSpinBox* m_spinBreakVal;
     QComboBox* m_comboBreakUnit;
     QPushButton* m_btnSave;
     QPushButton* m_btnCancel;

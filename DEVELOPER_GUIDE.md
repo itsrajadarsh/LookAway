@@ -85,6 +85,8 @@ LookAway/
 │   ├── BreakOverlayWidget.cpp  # Overlay visual layout, countdown render, Esc key capture
 │   ├── CustomPresetDialog.h    # Custom profile creation/edit dialog declarations
 │   ├── CustomPresetDialog.cpp  # Custom preset form, validation, and duration conversion
+│   ├── FullscreenDetector.h    # Full-screen app/media detector declarations
+│   ├── FullscreenDetector.cpp  # Win32, X11, and D-Bus inhibitor fullscreen detection
 │   ├── SystemTrayManager.h     # System tray controller declarations
 │   ├── SystemTrayManager.cpp   # QSystemTrayIcon menu, tooltip updates, balloon notifications
 │   ├── MainWindow.h            # Main dashboard and settings window declarations
@@ -915,3 +917,51 @@ To extend idle detection beyond Windows, implement the X11 `XScreenSaver` extens
 1. Place audio `.wav` files into `resources/sounds/`.
 2. Register the files in [resources/resources.qrc](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/resources/resources.qrc).
 3. Bind the resource URL in [src/AudioManager.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/AudioManager.cpp#L10-L11).
+
+---
+
+## 12. Advanced Ergonomics & Extended Capabilities
+
+### 12.1 Single-Instance Enforcement (IPC via QLocalServer)
+LookAway guarantees a single running instance per desktop session.
+- **Entry Point:** [src/main.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/main.cpp)
+- **Mechanism:** On launch, LookAway connects to `LookAway_SingleInstance_IPC_Server` via `QLocalSocket`. If another instance is running, it transmits `"SHOW_WINDOW\n"` to raise the existing window and exits `0`.
+- **Primary Listener:** If connection fails, the process removes stale sockets, begins listening via `QLocalServer`, and raises `MainWindow` whenever secondary launches are attempted.
+
+### 12.2 Ambient Border Glow Shield (DisplayMode::BorderGlow)
+- **Class:** [src/BreakOverlayWidget.h](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/BreakOverlayWidget.h)
+- **Attributes:**
+  - `setAttribute(Qt::WA_TranslucentBackground, true);`
+  - `setAttribute(Qt::WA_TransparentForMouseEvents, true);`
+  - `setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);`
+  - `setAttribute(Qt::WA_ShowWithoutActivating, true);`
+- **Visual Presentation:** A luminous 12px Sky Cyan halo border (`rgba(56, 189, 248, 220)`) framing the monitor without blocking text or mouse clicks.
+
+### 12.3 Floating Card Geometry Restoration & Resizability
+- **Persistence:** Stored in `QSettings` under `ui/popupGeometry`.
+- **Safe Clamping:** Validated against `QGuiApplication::screens()` to prevent off-screen display when external monitors are disconnected.
+- **Interactive Sizing:** Embedded `QSizeGrip` in the bottom-right corner allows fluid resizing with bounded constraints ($340 \times 240$ min, $1200 \times 800$ max).
+
+### 12.4 Compound Dual-Preset Scheduling
+- **Engine:** [src/TimerEngine.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/TimerEngine.cpp)
+- **Coordination Logic:**
+  - **Micro Break (e.g. 20-20-20):** During 20s eye rest, the Macro timer is paused and resumes immediately after.
+  - **Macro Break (e.g. 50-10):** During 10m long rest, the Micro timer is paused, and upon completion of the 10m break, the Micro timer is **reset back to 20m** (preventing an immediate break right after a long rest).
+  - **Simultaneous Expiration:** Macro break takes priority.
+
+### 12.5 Strict Eye Rest Enforcement (Force Disable Skip)
+- **Key:** `ui/forceDisableSkip` (default: `false`).
+- **Safety Modal:** User must confirm with a modal warning before strict mode activates.
+- **Enforcement:** Hides the "Skip Break" button in both overlay and dashboard, suppresses the `Esc` key in `BreakOverlayWidget`, and causes `TimerEngine::skipBreak()` to return early.
+
+### 12.6 Fullscreen Application Detection
+- **Class:** [src/FullscreenDetector.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/FullscreenDetector.cpp)
+- **Windows:** Queries foreground window rect and compares against the monitor rect, excluding shell windows.
+- **Linux:** Queries active window state via `xprop` for `_NET_WM_STATE_FULLSCREEN` and checks D-Bus `org.freedesktop.ScreenSaver` active inhibitors.
+- **Behavior:** Postpones imminent breaks by 2 minutes when fullscreen video players (VLC, Chrome, Firefox) or games are active.
+
+### 12.7 Focus Non-Stealing Architecture
+- **Flag:** `ui/nonStealingFocus` (default: `true`).
+- **Flags Applied:** `Qt::WA_ShowWithoutActivating`, `Qt::WindowDoesNotAcceptFocus`, `setFocusPolicy(Qt::NoFocus)`.
+- **Result:** Calling `show()` and `raise()` displays break notifications on top of the screen without snatching keyboard focus from active IDEs, terminals, or documents.
+

@@ -5,8 +5,9 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QProgressBar>
-#include <QMouseEvent>
 #include <QKeyEvent>
+#include <QFrame>
+#include <QTimer>
 
 class BreakOverlayWidget : public QWidget {
     Q_OBJECT
@@ -14,7 +15,8 @@ class BreakOverlayWidget : public QWidget {
 public:
     enum class DisplayMode {
         FullScreen,
-        CenteredPopup
+        CenteredPopup,
+        BorderGlow
     };
     Q_ENUM(DisplayMode)
 
@@ -22,25 +24,34 @@ public:
 
     void updateCountdown(int secondsRemaining, int totalSeconds);
     DisplayMode displayMode() const;
+    void setSkipDisabled(bool disabled);
 
 signals:
     void skipRequested();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
 
 private:
     void setupUi();
 
     DisplayMode m_mode;
-    QPoint m_dragPosition;
-    QLabel* m_lblTitle;
-    QLabel* m_lblSubtitle;
-    QLabel* m_lblCountdown;
-    QProgressBar* m_progressBar;
-    QPushButton* m_btnSkip;
+    bool m_skipDisabled;
+
+    // Strict enforcement watchdog timer
+    QTimer* m_enforceTopTimer = nullptr;
+
+    // Ambient border glow breathing animation
+    QTimer* m_glowTimer = nullptr;
+    float m_glowPhase = 0.0f;
+
+    QFrame* m_bgFrame = nullptr;
+    QLabel* m_lblTitle = nullptr;
+    QLabel* m_lblSubtitle = nullptr;
+    QLabel* m_lblCountdown = nullptr;
+    QProgressBar* m_progressBar = nullptr;
+    QPushButton* m_btnSkip = nullptr;
 };
 
 #endif // BREAKOVERLAYWIDGET_H

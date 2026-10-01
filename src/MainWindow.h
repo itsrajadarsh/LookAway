@@ -63,6 +63,7 @@ private:
     QLabel* m_statusBadgeLabel;
     QLabel* m_countdownLabel;
     QProgressBar* m_progressBar;
+    QLabel* m_lblSecondaryTimerStatus;
     QPushButton* m_btnPlayPause;
     QPushButton* m_btnReset;
     QPushButton* m_btnSkipBreak;
@@ -72,6 +73,7 @@ private:
     QPushButton* m_btnPreset25;
     QPushButton* m_btnPreset50;
     QPushButton* m_btnPresetCustom;
+    QPushButton* m_btnToggleConcurrentMode;
     QMenu* m_customPresetMenu;
 
     // Stats UI
@@ -85,8 +87,12 @@ private:
     QComboBox* m_comboBreakVal;
     QComboBox* m_comboBreakUnit;
     QPushButton* m_btnSaveCurrentAsProfile;
+    QCheckBox* m_chkConcurrentPresets;
+    QComboBox* m_comboSecondaryPreset;
     QCheckBox* m_chkBreakWindow;
     QComboBox* m_comboBreakStyle;
+    QCheckBox* m_chkForceDisableSkip;
+    QCheckBox* m_chkSuppressOnFullscreen;
     QCheckBox* m_chkAudioEnabled;
     QSlider* m_sliderVolume;
     QLabel* m_lblVolumeVal;

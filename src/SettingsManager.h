@@ -5,6 +5,7 @@
 #include <QSettings>
 #include <QDate>
 #include <QList>
+#include <QRect>
 
 struct CustomPreset {
     QString name;
@@ -48,11 +49,36 @@ public:
     QString breakWindowStyle() const;
     void setBreakWindowStyle(const QString& style);
 
+    QRect popupGeometry() const;
+    void setPopupGeometry(const QRect& geom);
+
+    bool forceDisableSkip() const;
+    void setForceDisableSkip(bool disable);
+
+    bool suppressOnFullscreen() const;
+    void setSuppressOnFullscreen(bool suppress);
+
+    bool nonStealingFocus() const;
+    void setNonStealingFocus(bool nonStealing);
+
     bool idleDetectionEnabled() const;
     void setIdleDetectionEnabled(bool enabled);
 
     int idleThresholdSeconds() const;
     void setIdleThresholdSeconds(int seconds);
+
+    // Multi/Concurrent Presets
+    bool concurrentPresetsEnabled() const;
+    void setConcurrentPresetsEnabled(bool enabled);
+
+    QString secondaryPresetName() const;
+    void setSecondaryPresetName(const QString& name);
+
+    int secondaryWorkDurationSeconds() const;
+    void setSecondaryWorkDurationSeconds(int seconds);
+
+    int secondaryBreakDurationSeconds() const;
+    void setSecondaryBreakDurationSeconds(int seconds);
 
     // Custom Presets
     QList<CustomPreset> customPresets() const;

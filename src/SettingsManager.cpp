@@ -2,6 +2,9 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDate>
+#include <QStandardPaths>
+#include <QFile>
+#include <QTextStream>
 
 SettingsManager::SettingsManager(QObject* parent)
     : QObject(parent),
@@ -88,12 +91,85 @@ void SettingsManager::setBreakWindowEnabled(bool enabled) {
 }
 
 QString SettingsManager::breakWindowStyle() const {
-    return m_settings.value("ui/breakWindowStyle", "fullscreen").toString();
+    return m_settings.value("ui/breakWindowStyle", "popup").toString();
 }
 
 void SettingsManager::setBreakWindowStyle(const QString& style) {
     m_settings.setValue("ui/breakWindowStyle", style);
     m_settings.setValue("ui/strictMode", breakWindowEnabled() && (style == "fullscreen"));
+    emit settingsChanged();
+}
+
+QRect SettingsManager::popupGeometry() const {
+    return m_settings.value("ui/popupGeometry", QRect(-1, -1, 460, 320)).toRect();
+}
+
+void SettingsManager::setPopupGeometry(const QRect& geom) {
+    m_settings.setValue("ui/popupGeometry", geom);
+}
+
+bool SettingsManager::forceDisableSkip() const {
+    return m_settings.value("ui/forceDisableSkip", false).toBool();
+}
+
+void SettingsManager::setForceDisableSkip(bool disable) {
+    m_settings.setValue("ui/forceDisableSkip", disable);
+    emit settingsChanged();
+}
+
+bool SettingsManager::suppressOnFullscreen() const {
+    return m_settings.value("system/suppressOnFullscreen", false).toBool();
+}
+
+void SettingsManager::setSuppressOnFullscreen(bool suppress) {
+    m_settings.setValue("system/suppressOnFullscreen", suppress);
+    emit settingsChanged();
+}
+
+bool SettingsManager::nonStealingFocus() const {
+    return m_settings.value("ui/nonStealingFocus", true).toBool();
+}
+
+void SettingsManager::setNonStealingFocus(bool nonStealing) {
+    m_settings.setValue("ui/nonStealingFocus", nonStealing);
+    emit settingsChanged();
+}
+
+bool SettingsManager::concurrentPresetsEnabled() const {
+    return m_settings.value("timer/concurrentPresetsEnabled", false).toBool();
+}
+
+void SettingsManager::setConcurrentPresetsEnabled(bool enabled) {
+    m_settings.setValue("timer/concurrentPresetsEnabled", enabled);
+    emit settingsChanged();
+}
+
+QString SettingsManager::secondaryPresetName() const {
+    return m_settings.value("timer/secondaryPresetName", "50-10").toString();
+}
+
+void SettingsManager::setSecondaryPresetName(const QString& name) {
+    m_settings.setValue("timer/secondaryPresetName", name);
+    emit settingsChanged();
+}
+
+int SettingsManager::secondaryWorkDurationSeconds() const {
+    return m_settings.value("timer/secondaryWorkDuration", 3000).toInt(); // 50 mins default
+}
+
+void SettingsManager::setSecondaryWorkDurationSeconds(int seconds) {
+    if (seconds <= 0) seconds = 3000;
+    m_settings.setValue("timer/secondaryWorkDuration", seconds);
+    emit settingsChanged();
+}
+
+int SettingsManager::secondaryBreakDurationSeconds() const {
+    return m_settings.value("timer/secondaryBreakDuration", 600).toInt(); // 10 mins default
+}
+
+void SettingsManager::setSecondaryBreakDurationSeconds(int seconds) {
+    if (seconds <= 0) seconds = 600;
+    m_settings.setValue("timer/secondaryBreakDuration", seconds);
     emit settingsChanged();
 }
 
@@ -256,6 +332,14 @@ void SettingsManager::resetAllToDefaults() {
     setNotificationsEnabled(true);
     setBreakWindowEnabled(true);
     setBreakWindowStyle("popup");
+    setPopupGeometry(QRect(-1, -1, 460, 320));
+    setForceDisableSkip(false);
+    setSuppressOnFullscreen(false);
+    setNonStealingFocus(true);
+    setConcurrentPresetsEnabled(false);
+    setSecondaryPresetName("50-10");
+    setSecondaryWorkDurationSeconds(3000);
+    setSecondaryBreakDurationSeconds(600);
     setCloseToTray(true);
     setAutostart(false);
     setIdleDetectionEnabled(true);
@@ -273,6 +357,41 @@ void SettingsManager::applyAutostart(bool enabled) {
         autoRunSettings.setValue("LookAway", "\"" + appPath + "\" --minimized");
     } else {
         autoRunSettings.remove("LookAway");
+    }
+#elif defined(Q_OS_LINUX)
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+    QString autostartDir = configDir + "/autostart";
+    QString desktopFilePath = autostartDir + "/lookaway.desktop";
+
+    if (enabled) {
+        QDir dir;
+        if (!dir.exists(autostartDir)) {
+            dir.mkpath(autostartDir);
+        }
+
+        QString appPath = qEnvironmentVariableIsSet("APPIMAGE")
+                              ? qEnvironmentVariable("APPIMAGE")
+                              : QCoreApplication::applicationFilePath();
+
+        QFile file(desktopFilePath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out << "[Desktop Entry]\n";
+            out << "Type=Application\n";
+            out << "Version=1.0\n";
+            out << "Name=LookAway\n";
+            out << "GenericName=Eye Care Utility\n";
+            out << "Comment=20-20-20 Eye Care Background Utility\n";
+            out << "Exec=\"" << appPath << "\" --minimized\n";
+            out << "Icon=lookaway\n";
+            out << "Terminal=false\n";
+            out << "Categories=Utility;Health;\n";
+            out << "StartupNotify=false\n";
+            out << "X-GNOME-Autostart-enabled=true\n";
+            file.close();
+        }
+    } else {
+        QFile::remove(desktopFilePath);
     }
 #endif
 }

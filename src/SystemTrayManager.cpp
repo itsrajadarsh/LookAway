@@ -98,11 +98,25 @@ void SystemTrayManager::handleTick(int secondsRemaining, int totalSeconds) {
         break;
     }
 
-    int mins = secondsRemaining / 60;
-    int secs = secondsRemaining % 60;
+    QString timeStr;
+    if (secondsRemaining >= 3600) {
+        int hrs = secondsRemaining / 3600;
+        int mins = (secondsRemaining % 3600) / 60;
+        int secs = secondsRemaining % 60;
+        timeStr = QString("%1:%2:%3")
+                      .arg(hrs, 2, 10, QChar('0'))
+                      .arg(mins, 2, 10, QChar('0'))
+                      .arg(secs, 2, 10, QChar('0'));
+    } else {
+        int mins = secondsRemaining / 60;
+        int secs = secondsRemaining % 60;
+        timeStr = QString("%1:%2")
+                      .arg(mins, 2, 10, QChar('0'))
+                      .arg(secs, 2, 10, QChar('0'));
+    }
     QString tooltip = QString("LookAway - %1\n%2 remaining")
                           .arg(stateStr)
-                          .arg(QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0')));
+                          .arg(timeStr);
     m_trayIcon->setToolTip(tooltip);
 }
 

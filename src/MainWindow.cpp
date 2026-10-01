@@ -21,13 +21,46 @@ MainWindow::MainWindow(TimerEngine* timerEngine, SettingsManager* settings, Audi
 
     setWindowIcon(QIcon(":/icons/app_icon.svg"));
     setWindowTitle("LookAway - 20-20-20 Eye Care");
-    setFixedSize(510, 650);
+    setFixedSize(520, 670);
 
     setupUi();
     applyTheme();
 
     connect(m_timerEngine, &TimerEngine::stateChanged, this, &MainWindow::updateUiForState);
     connect(m_timerEngine, &TimerEngine::tick, this, &MainWindow::updateCountdown);
+    connect(m_timerEngine, &TimerEngine::compoundTick, [this](int pRem, int pTot, int sRem, int sTot) {
+        Q_UNUSED(pRem);
+        Q_UNUSED(pTot);
+        Q_UNUSED(sTot);
+        if (m_settings->concurrentPresetsEnabled() && m_timerEngine->state() == TimerEngine::State::Working) {
+            m_lblSecondaryTimerStatus->setVisible(true);
+            QString timeStr;
+            if (sRem >= 3600) {
+                int hrs = sRem / 3600;
+                int mins = (sRem % 3600) / 60;
+                int secs = sRem % 60;
+                timeStr = QString("%1:%2:%3")
+                              .arg(hrs, 2, 10, QChar('0'))
+                              .arg(mins, 2, 10, QChar('0'))
+                              .arg(secs, 2, 10, QChar('0'));
+            } else {
+                int mins = sRem / 60;
+                int secs = sRem % 60;
+                timeStr = QString("%1:%2")
+                              .arg(mins, 2, 10, QChar('0'))
+                              .arg(secs, 2, 10, QChar('0'));
+            }
+            m_lblSecondaryTimerStatus->setText(QString("Macro Break (%1): %2")
+                .arg(m_settings->secondaryPresetName())
+                .arg(timeStr));
+        } else {
+            m_lblSecondaryTimerStatus->setVisible(false);
+        }
+    });
+    connect(m_timerEngine, &TimerEngine::breakDeferredForFullscreen, [this]() {
+        m_statusBadgeLabel->setText("BREAK POSTPONED (FULL-SCREEN APP ACTIVE)");
+        m_statusBadgeLabel->setStyleSheet("background-color: #64748b; color: #ffffff;");
+    });
     connect(m_settings, &SettingsManager::statsUpdated, this, &MainWindow::updateStatsDisplay);
 
     loadSettingsToUi();
@@ -128,6 +161,13 @@ QWidget* MainWindow::createDashboardTab() {
     m_progressBar->setTextVisible(false);
     cardLayout->addWidget(m_progressBar);
 
+    m_lblSecondaryTimerStatus = new QLabel("");
+    m_lblSecondaryTimerStatus->setObjectName("secondaryTimerBadge");
+    m_lblSecondaryTimerStatus->setAlignment(Qt::AlignCenter);
+    m_lblSecondaryTimerStatus->setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: 600; padding: 4px 8px; margin-top: 6px; background: rgba(56, 189, 248, 25); border: 1px solid rgba(56, 189, 248, 80); border-radius: 6px;");
+    m_lblSecondaryTimerStatus->setVisible(false);
+    cardLayout->addWidget(m_lblSecondaryTimerStatus);
+
     layout->addWidget(timerCard);
 
     // Controls
@@ -152,12 +192,46 @@ QWidget* MainWindow::createDashboardTab() {
     btnLayout->addWidget(m_btnSkipBreak);
     layout->addLayout(btnLayout);
 
+    // Presets Row Header with Dual Schedule toggle
+    QHBoxLayout* presetHeaderLayout = new QHBoxLayout();
+    QLabel* lblPreset = new QLabel("Presets:");
+    lblPreset->setStyleSheet("font-weight: 700; color: #94a3b8; font-size: 12px;");
+    presetHeaderLayout->addWidget(lblPreset);
+    presetHeaderLayout->addStretch();
+
+    m_btnToggleConcurrentMode = new QPushButton("Dual Schedule: Off");
+    m_btnToggleConcurrentMode->setObjectName("btnSmall");
+    m_btnToggleConcurrentMode->setFixedHeight(26);
+    m_btnToggleConcurrentMode->setToolTip("Toggle compound scheduling (e.g. running 20-20-20 Micro Eye Break AND 50-10 Macro Break simultaneously).");
+    connect(m_btnToggleConcurrentMode, &QPushButton::clicked, [this]() {
+        bool enabled = !m_settings->concurrentPresetsEnabled();
+        m_settings->setConcurrentPresetsEnabled(enabled);
+        if (m_chkConcurrentPresets) {
+            m_chkConcurrentPresets->setChecked(enabled);
+        }
+        if (enabled) {
+            m_btnToggleConcurrentMode->setText("Dual Schedule: ON");
+            m_btnToggleConcurrentMode->setStyleSheet("background-color: #0284c7; color: #ffffff; border: 1px solid #38bdf8;");
+            if (m_settings->secondaryPresetName().isEmpty() || m_settings->secondaryPresetName() == m_settings->activePresetName()) {
+                m_settings->setSecondaryPresetName("50-10 Work");
+                m_settings->setSecondaryWorkDurationSeconds(50 * 60);
+                m_settings->setSecondaryBreakDurationSeconds(600);
+            }
+        } else {
+            m_btnToggleConcurrentMode->setText("Dual Schedule: Off");
+            m_btnToggleConcurrentMode->setStyleSheet("");
+            m_lblSecondaryTimerStatus->setVisible(false);
+        }
+        updateActivePresetHighlight();
+        m_timerEngine->stop();
+        m_timerEngine->start();
+    });
+    presetHeaderLayout->addWidget(m_btnToggleConcurrentMode);
+    layout->addLayout(presetHeaderLayout);
+
     // Presets Row
     QHBoxLayout* presetLayout = new QHBoxLayout();
     presetLayout->setSpacing(8);
-    QLabel* lblPreset = new QLabel("Presets:");
-    lblPreset->setStyleSheet("font-weight: 700; color: #94a3b8; font-size: 12px;");
-    presetLayout->addWidget(lblPreset);
 
     m_btnPreset20 = new QPushButton("20-20-20");
     m_btnPreset20->setObjectName("btnPreset");
@@ -205,14 +279,36 @@ QWidget* MainWindow::createDashboardTab() {
     m_btnPresetCustom->setMenu(m_customPresetMenu);
     rebuildCustomPresetMenu();
 
-    connect(m_btnPreset20, &QPushButton::clicked, [this]() {
-        applyPreset(20 * 60, 20, "20-20-20");
+    auto onPresetClicked = [this](int workSecs, int breakSecs, const QString& presetName) {
+        if (m_settings->concurrentPresetsEnabled()) {
+            if (m_settings->workDurationSeconds() == workSecs && m_settings->breakDurationSeconds() == breakSecs) {
+                // Clicking primary preset in dual mode toggles dual mode off
+                m_settings->setConcurrentPresetsEnabled(false);
+                m_btnToggleConcurrentMode->setText("Dual Schedule: Off");
+                m_btnToggleConcurrentMode->setStyleSheet("");
+                m_lblSecondaryTimerStatus->setVisible(false);
+            } else {
+                // Set as secondary (Macro) preset
+                m_settings->setSecondaryPresetName(presetName);
+                m_settings->setSecondaryWorkDurationSeconds(workSecs);
+                m_settings->setSecondaryBreakDurationSeconds(breakSecs);
+            }
+            updateActivePresetHighlight();
+            m_timerEngine->stop();
+            m_timerEngine->start();
+        } else {
+            applyPreset(workSecs, breakSecs, presetName);
+        }
+    };
+
+    connect(m_btnPreset20, &QPushButton::clicked, [onPresetClicked]() {
+        onPresetClicked(20 * 60, 20, "20-20-20");
     });
-    connect(m_btnPreset25, &QPushButton::clicked, [this]() {
-        applyPreset(25 * 60, 300, "25-5 Pomo");
+    connect(m_btnPreset25, &QPushButton::clicked, [onPresetClicked]() {
+        onPresetClicked(25 * 60, 300, "25-5 Pomo");
     });
-    connect(m_btnPreset50, &QPushButton::clicked, [this]() {
-        applyPreset(50 * 60, 600, "50-10 Work");
+    connect(m_btnPreset50, &QPushButton::clicked, [onPresetClicked]() {
+        onPresetClicked(50 * 60, 600, "50-10 Work");
     });
 
     m_btnPreset20->setFixedHeight(34);
@@ -423,13 +519,15 @@ QWidget* MainWindow::createSettingsTab() {
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    scrollArea->setObjectName("settingsScrollArea");
+    scrollArea->setStyleSheet("#settingsScrollArea { background: transparent; border: none; }");
 
     QWidget* tabContent = new QWidget();
-    tabContent->setStyleSheet("background: transparent;");
+    tabContent->setObjectName("tabSettingsContent");
+    tabContent->setStyleSheet("#tabSettingsContent { background: transparent; }");
 
     QVBoxLayout* layout = new QVBoxLayout(tabContent);
-    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setContentsMargins(16, 12, 28, 16);
     layout->setSpacing(14);
 
     // Group 1: Timer Durations
@@ -480,6 +578,27 @@ QWidget* MainWindow::createSettingsTab() {
     profileActionLayout->addWidget(m_btnSaveCurrentAsProfile);
     timerGroupLayout->addLayout(profileActionLayout);
 
+    QFrame* dualSeparator = new QFrame();
+    dualSeparator->setFrameShape(QFrame::HLine);
+    dualSeparator->setStyleSheet("color: #334155; margin: 4px 0px;");
+    timerGroupLayout->addWidget(dualSeparator);
+
+    m_chkConcurrentPresets = new QCheckBox("Enable dual schedule (Compound Micro & Macro breaks)");
+    m_chkConcurrentPresets->setToolTip("Run a short eye rest interval (e.g. 20-20-20) and a long rest interval (e.g. 50-10) concurrently.");
+    timerGroupLayout->addWidget(m_chkConcurrentPresets);
+
+    QHBoxLayout* secondaryLayout = new QHBoxLayout();
+    secondaryLayout->setContentsMargins(24, 0, 0, 0);
+    QLabel* lblSecondary = new QLabel("Secondary preset:");
+    lblSecondary->setStyleSheet("color: #94a3b8;");
+    m_comboSecondaryPreset = new QComboBox();
+    m_comboSecondaryPreset->addItem("50-10 Work (50m Work / 10m Break)", "50-10");
+    m_comboSecondaryPreset->addItem("25-5 Pomo (25m Work / 5m Break)", "25-5");
+    m_comboSecondaryPreset->addItem("20-20-20 (20m Work / 20s Break)", "20-20-20");
+    secondaryLayout->addWidget(lblSecondary);
+    secondaryLayout->addWidget(m_comboSecondaryPreset, 1);
+    timerGroupLayout->addLayout(secondaryLayout);
+
     layout->addWidget(timerGroup);
 
     // Group 2: Break Window && Alerts
@@ -496,11 +615,20 @@ QWidget* MainWindow::createSettingsTab() {
     QLabel* lblStyle = new QLabel("Window style:");
     lblStyle->setStyleSheet("color: #94a3b8;");
     m_comboBreakStyle = new QComboBox();
-    m_comboBreakStyle->addItem("Centered popup window (Floating alert card)", "popup");
+    m_comboBreakStyle->addItem("Centered popup window (Rest reminder)", "popup");
+    m_comboBreakStyle->addItem("Ambient border glow (Transparent perimeter halo)", "border");
     m_comboBreakStyle->addItem("Full-screen shield (Blocks all displays)", "fullscreen");
     styleLayout->addWidget(lblStyle);
     styleLayout->addWidget(m_comboBreakStyle, 1);
     alertsLayout->addLayout(styleLayout);
+
+    m_chkForceDisableSkip = new QCheckBox("Disable 'Skip Break' button (Strict eye rest enforcement)");
+    m_chkForceDisableSkip->setToolTip("Prevents skipping breaks via button or Escape key during rest sessions.");
+    alertsLayout->addWidget(m_chkForceDisableSkip);
+
+    m_chkSuppressOnFullscreen = new QCheckBox("Postpone breaks during full-screen apps (movies / presentations / games)");
+    m_chkSuppressOnFullscreen->setToolTip("Automatically defers breaks when a full-screen video player or game is active.");
+    alertsLayout->addWidget(m_chkSuppressOnFullscreen);
 
     m_chkAudioEnabled = new QCheckBox("Play sound on interval finish");
     alertsLayout->addWidget(m_chkAudioEnabled);
@@ -579,7 +707,8 @@ QWidget* MainWindow::createSettingsTab() {
             m_settings->resetAllToDefaults();
             loadSettingsToUi();
             m_timerEngine->stop();
-            QMessageBox::information(this, "Settings Reset", "All settings have been restored to defaults.");
+            m_timerEngine->start();
+            QMessageBox::information(this, "Settings Reset", "All timer intervals, alert modes, window styles, and preferences have been restored to factory defaults.");
         }
     });
     layout->addWidget(btnResetDefaults);
@@ -594,7 +723,9 @@ QWidget* MainWindow::createSettingsTab() {
     };
 
     auto setupCombo = [saveLambda](QComboBox* combo) {
-        combo->setCompleter(nullptr);
+        if (combo->isEditable()) {
+            combo->setCompleter(nullptr);
+        }
         combo->setMaxVisibleItems(6);
 
         QListView* listView = new QListView(combo);
@@ -622,7 +753,6 @@ QWidget* MainWindow::createSettingsTab() {
                 color: #f8fafc;
                 padding: 6px 12px;
                 border-radius: 4px;
-                min-height: 22px;
             }
             QListView::item:selected:!hover {
                 background-color: #1e293b;
@@ -650,14 +780,52 @@ QWidget* MainWindow::createSettingsTab() {
     setupCombo(m_comboWorkUnit);
     setupCombo(m_comboBreakVal);
     setupCombo(m_comboBreakUnit);
+    setupCombo(m_comboSecondaryPreset);
     setupCombo(m_comboBreakStyle);
     setupCombo(m_comboIdleVal);
     setupCombo(m_comboIdleUnit);
+
+    connect(m_chkConcurrentPresets, &QCheckBox::toggled, [this, saveLambda](bool checked) {
+        m_comboSecondaryPreset->setEnabled(checked);
+        if (m_btnToggleConcurrentMode) {
+            m_btnToggleConcurrentMode->setText(checked ? "Dual Schedule: ON" : "Dual Schedule: Off");
+            m_btnToggleConcurrentMode->setStyleSheet(checked ? "background-color: #0284c7; color: #ffffff; border: 1px solid #38bdf8;" : "");
+        }
+        if (!checked && m_lblSecondaryTimerStatus) {
+            m_lblSecondaryTimerStatus->setVisible(false);
+        }
+        saveLambda();
+        updateActivePresetHighlight();
+    });
+    connect(m_comboSecondaryPreset, QOverload<int>::of(&QComboBox::activated), [this, saveLambda](int) {
+        saveLambda();
+        updateActivePresetHighlight();
+    });
 
     connect(m_chkBreakWindow, &QCheckBox::toggled, [this, saveLambda](bool checked) {
         m_comboBreakStyle->setEnabled(checked);
         saveLambda();
     });
+
+    connect(m_chkForceDisableSkip, &QCheckBox::clicked, [this](bool checked) {
+        if (checked) {
+            QMessageBox::StandardButton reply = QMessageBox::warning(
+                this,
+                "Enable Strict Eye Rest Mode?",
+                "Enabling this option will hide the 'Skip Break' button and disable the Escape key during all breaks.\n\n"
+                "You will NOT be able to dismiss or bypass the break until the timer completes.\n\n"
+                "Are you sure you want to enable strict enforcement?",
+                QMessageBox::Yes | QMessageBox::Cancel
+            );
+            if (reply != QMessageBox::Yes) {
+                m_chkForceDisableSkip->setChecked(false);
+                return;
+            }
+        }
+        saveSettingsFromUi();
+    });
+
+    connect(m_chkSuppressOnFullscreen, &QCheckBox::toggled, saveLambda);
 
     connect(m_chkAudioEnabled, &QCheckBox::toggled, [this, saveLambda](bool checked) {
         m_sliderVolume->setEnabled(checked);
@@ -693,10 +861,18 @@ void MainWindow::loadSettingsToUi() {
     secondsToUi(m_settings->workDurationSeconds(), m_comboWorkVal, m_comboWorkUnit);
     secondsToUi(m_settings->breakDurationSeconds(), m_comboBreakVal, m_comboBreakUnit);
 
+    m_chkConcurrentPresets->setChecked(m_settings->concurrentPresetsEnabled());
+    int secIdx = m_comboSecondaryPreset->findData(m_settings->secondaryPresetName());
+    if (secIdx >= 0) m_comboSecondaryPreset->setCurrentIndex(secIdx);
+    m_comboSecondaryPreset->setEnabled(m_settings->concurrentPresetsEnabled());
+
     m_chkBreakWindow->setChecked(m_settings->breakWindowEnabled());
     int styleIdx = m_comboBreakStyle->findData(m_settings->breakWindowStyle());
     if (styleIdx >= 0) m_comboBreakStyle->setCurrentIndex(styleIdx);
     m_comboBreakStyle->setEnabled(m_settings->breakWindowEnabled());
+
+    m_chkForceDisableSkip->setChecked(m_settings->forceDisableSkip());
+    m_chkSuppressOnFullscreen->setChecked(m_settings->suppressOnFullscreen());
 
     m_chkAudioEnabled->setChecked(m_settings->audioEnabled());
     m_sliderVolume->setValue(m_settings->volume());
@@ -722,8 +898,25 @@ void MainWindow::saveSettingsFromUi() {
 
     m_settings->setWorkDurationSeconds(workSecs);
     m_settings->setBreakDurationSeconds(breakSecs);
+
+    m_settings->setConcurrentPresetsEnabled(m_chkConcurrentPresets->isChecked());
+    QString secPreset = m_comboSecondaryPreset->currentData().toString();
+    m_settings->setSecondaryPresetName(secPreset);
+    if (secPreset == "50-10") {
+        m_settings->setSecondaryWorkDurationSeconds(50 * 60);
+        m_settings->setSecondaryBreakDurationSeconds(600);
+    } else if (secPreset == "25-5") {
+        m_settings->setSecondaryWorkDurationSeconds(25 * 60);
+        m_settings->setSecondaryBreakDurationSeconds(300);
+    } else if (secPreset == "20-20-20") {
+        m_settings->setSecondaryWorkDurationSeconds(20 * 60);
+        m_settings->setSecondaryBreakDurationSeconds(20);
+    }
+
     m_settings->setBreakWindowEnabled(m_chkBreakWindow->isChecked());
     m_settings->setBreakWindowStyle(m_comboBreakStyle->currentData().toString());
+    m_settings->setForceDisableSkip(m_chkForceDisableSkip->isChecked());
+    m_settings->setSuppressOnFullscreen(m_chkSuppressOnFullscreen->isChecked());
     m_settings->setAudioEnabled(m_chkAudioEnabled->isChecked());
     m_settings->setVolume(m_sliderVolume->value());
     m_settings->setNotificationsEnabled(m_chkNotificationsEnabled->isChecked());
@@ -789,6 +982,26 @@ void MainWindow::updateActivePresetHighlight() {
             m_btnPresetCustom->setText("Custom ▾");
         }
     }
+
+    if (m_settings->concurrentPresetsEnabled()) {
+        if (m_btnToggleConcurrentMode) {
+            m_btnToggleConcurrentMode->setText("Dual Schedule: ON");
+            m_btnToggleConcurrentMode->setStyleSheet("background-color: #0284c7; color: #ffffff; border: 1px solid #38bdf8;");
+        }
+        QString sec = m_settings->secondaryPresetName();
+        if (sec.contains("50-10")) {
+            m_btnPreset50->setChecked(true);
+        } else if (sec.contains("25-5") || sec.contains("Pomo")) {
+            m_btnPreset25->setChecked(true);
+        } else if (sec.contains("20-20-20")) {
+            m_btnPreset20->setChecked(true);
+        }
+    } else {
+        if (m_btnToggleConcurrentMode) {
+            m_btnToggleConcurrentMode->setText("Dual Schedule: Off");
+            m_btnToggleConcurrentMode->setStyleSheet("");
+        }
+    }
 }
 
 void MainWindow::updateStatsDisplay() {
@@ -806,7 +1019,6 @@ void MainWindow::showSettingsTab() {
 }
 
 void MainWindow::updateUiForState(TimerEngine::State newState, TimerEngine::State oldState) {
-    Q_UNUSED(oldState);
     switch (newState) {
     case TimerEngine::State::Working:
         m_statusBadgeLabel->setText("WORKING SESSION");
@@ -817,44 +1029,72 @@ void MainWindow::updateUiForState(TimerEngine::State newState, TimerEngine::Stat
         m_breakOverlays.clear();
         break;
 
-    case TimerEngine::State::Breaking:
-        m_statusBadgeLabel->setText("LOOK 20 FEET AWAY! 👁️");
+    case TimerEngine::State::Breaking: {
+        bool isSecondary = (m_timerEngine->activeBreakType() == TimerEngine::ActiveBreakType::Secondary);
+        if (isSecondary) {
+            m_statusBadgeLabel->setText("LONG REST BREAK! ☕");
+        } else {
+            m_statusBadgeLabel->setText("LOOK 20 FEET AWAY! 👁️");
+        }
         m_statusBadgeLabel->setStyleSheet("background-color: #d97706; color: #ffffff;");
         m_btnPlayPause->setText("Pause");
-        m_btnSkipBreak->setEnabled(true);
+
+        bool canSkip = !m_settings->forceDisableSkip();
+        m_btnSkipBreak->setEnabled(canSkip);
+        if (!canSkip) {
+            m_btnSkipBreak->setToolTip("Skip break is disabled in settings (Strict Enforcement mode).");
+        } else {
+            m_btnSkipBreak->setToolTip("Skip the current break session.");
+        }
+
         qDeleteAll(m_breakOverlays);
         m_breakOverlays.clear();
 
         if (m_settings->breakWindowEnabled()) {
-            if (m_settings->breakWindowStyle() == "popup") {
+            QString style = m_settings->breakWindowStyle();
+
+            if (style == "popup") {
                 QScreen* screen = QGuiApplication::primaryScreen();
                 BreakOverlayWidget* popup = new BreakOverlayWidget(BreakOverlayWidget::DisplayMode::CenteredPopup);
+                popup->setSkipDisabled(!canSkip);
                 m_breakOverlays.append(popup);
                 connect(popup, &BreakOverlayWidget::skipRequested, m_timerEngine, &TimerEngine::skipBreak);
 
                 QRect screenGeom = screen ? screen->geometry() : QRect(0, 0, 1920, 1080);
                 int w = 460;
-                int h = 320;
+                int h = 300;
                 int x = screenGeom.x() + (screenGeom.width() - w) / 2;
                 int y = screenGeom.y() + (screenGeom.height() - h) / 2;
                 popup->setGeometry(x, y, w, h);
                 popup->show();
                 popup->raise();
                 popup->activateWindow();
+            } else if (style == "border") {
+                // Ambient border glow: transparent center, non-blocking perimeter halo
+                const QList<QScreen*> screens = QGuiApplication::screens();
+                for (QScreen* screen : screens) {
+                    BreakOverlayWidget* borderOverlay = new BreakOverlayWidget(BreakOverlayWidget::DisplayMode::BorderGlow);
+                    m_breakOverlays.append(borderOverlay);
+                    borderOverlay->setGeometry(screen->geometry());
+                    borderOverlay->show();
+                }
             } else {
+                // Fullscreen shield
                 const QList<QScreen*> screens = QGuiApplication::screens();
                 for (QScreen* screen : screens) {
                     BreakOverlayWidget* overlay = new BreakOverlayWidget(BreakOverlayWidget::DisplayMode::FullScreen);
+                    overlay->setSkipDisabled(!canSkip);
                     m_breakOverlays.append(overlay);
                     connect(overlay, &BreakOverlayWidget::skipRequested, m_timerEngine, &TimerEngine::skipBreak);
                     overlay->setGeometry(screen->geometry());
-                    overlay->showFullScreen();
+                    overlay->show();
                     overlay->raise();
                     overlay->activateWindow();
                 }
             }
         }
         break;
+    }
 
     case TimerEngine::State::Paused:
         if (m_timerEngine->isPausedForIdle()) {
@@ -883,11 +1123,23 @@ void MainWindow::updateUiForState(TimerEngine::State newState, TimerEngine::Stat
 }
 
 void MainWindow::updateCountdown(int secondsRemaining, int totalSeconds) {
-    int mins = secondsRemaining / 60;
-    int secs = secondsRemaining % 60;
-    m_countdownLabel->setText(QString("%1:%2")
-                                   .arg(mins, 2, 10, QChar('0'))
-                                   .arg(secs, 2, 10, QChar('0')));
+    QString timeText;
+    if (secondsRemaining >= 3600) {
+        int hrs = secondsRemaining / 3600;
+        int mins = (secondsRemaining % 3600) / 60;
+        int secs = secondsRemaining % 60;
+        timeText = QString("%1:%2:%3")
+                       .arg(hrs, 2, 10, QChar('0'))
+                       .arg(mins, 2, 10, QChar('0'))
+                       .arg(secs, 2, 10, QChar('0'));
+    } else {
+        int mins = secondsRemaining / 60;
+        int secs = secondsRemaining % 60;
+        timeText = QString("%1:%2")
+                       .arg(mins, 2, 10, QChar('0'))
+                       .arg(secs, 2, 10, QChar('0'));
+    }
+    m_countdownLabel->setText(timeText);
 
     if (totalSeconds > 0) {
         int pct = static_cast<int>((static_cast<double>(secondsRemaining) / totalSeconds) * 100.0);
@@ -914,6 +1166,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::applyTheme() {
+    QPalette appPal = qApp->palette();
+    appPal.setColor(QPalette::ToolTipBase, QColor("#0f172a"));
+    appPal.setColor(QPalette::ToolTipText, QColor("#f8fafc"));
+    qApp->setPalette(appPal);
+
     QString qss = R"(
         QMainWindow {
             background-color: #0f172a;
@@ -1058,7 +1315,7 @@ void MainWindow::applyTheme() {
             background-color: #334155;
             margin: 4px 8px;
         }
-        QToolTip {
+        QToolTip, QTipLabel {
             background-color: #0f172a;
             color: #f8fafc;
             border: 1px solid #38bdf8;
@@ -1102,7 +1359,6 @@ void MainWindow::applyTheme() {
             color: #f8fafc;
             padding: 6px 12px;
             border-radius: 4px;
-            min-height: 22px;
         }
         QComboBox QAbstractItemView::item:selected:!hover,
         QComboBox QListView::item:selected:!hover {
@@ -1163,18 +1419,17 @@ void MainWindow::applyTheme() {
             background: transparent;
         }
         QScrollBar:vertical {
-            background-color: #0f172a;
+            background-color: transparent;
             width: 8px;
-            margin: 0px;
-            border-radius: 4px;
+            margin: 10px 4px 10px 0px;
         }
         QScrollBar::handle:vertical {
             background-color: #334155;
-            min-height: 20px;
+            min-height: 28px;
             border-radius: 4px;
         }
         QScrollBar::handle:vertical:hover {
-            background-color: #475569;
+            background-color: #38bdf8;
         }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
