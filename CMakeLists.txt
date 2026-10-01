@@ -25,6 +25,8 @@ set(SOURCES
     src/BreakOverlayWidget.cpp
     src/MainWindow.h
     src/MainWindow.cpp
+    src/CustomPresetDialog.h
+    src/CustomPresetDialog.cpp
     resources/resources.qrc
 )
 

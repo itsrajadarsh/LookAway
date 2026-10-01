@@ -4,6 +4,13 @@
 #include <QObject>
 #include <QSettings>
 #include <QDate>
+#include <QList>
+
+struct CustomPreset {
+    QString name;
+    int workDurationSeconds;
+    int breakDurationSeconds;
+};
 
 class SettingsManager : public QObject {
     Q_OBJECT
@@ -35,19 +42,36 @@ public:
     bool strictModeEnabled() const;
     void setStrictModeEnabled(bool enabled);
 
+    bool breakWindowEnabled() const;
+    void setBreakWindowEnabled(bool enabled);
+
+    QString breakWindowStyle() const;
+    void setBreakWindowStyle(const QString& style);
+
     bool idleDetectionEnabled() const;
     void setIdleDetectionEnabled(bool enabled);
 
     int idleThresholdSeconds() const;
     void setIdleThresholdSeconds(int seconds);
 
-    // Statistics
+    // Custom Presets
+    QList<CustomPreset> customPresets() const;
+    void setCustomPresets(const QList<CustomPreset>& presets);
+    void saveCustomPreset(const CustomPreset& preset);
+    void deleteCustomPreset(const QString& name);
+
+    QString activePresetName() const;
+    void setActivePresetName(const QString& name);
+
+    // Statistics & Reset
     int breaksCompletedToday() const;
     int breaksSkippedToday() const;
     int eyeRestSecondsToday() const;
     void incrementBreaksCompleted(int breakDurationSecs);
     void incrementBreaksSkipped();
     void resetStatsIfNewDay();
+    void resetDailyStats();
+    void resetAllToDefaults();
 
 signals:
     void settingsChanged();

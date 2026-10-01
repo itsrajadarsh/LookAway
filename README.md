@@ -138,6 +138,12 @@ Right-clicking the system tray icon provides quick access to:
 
 ---
 
+## Documentation & Developer Guide
+
+For in-depth architectural blueprints, internal data structures, finite state machine specifications, signal-slot workflows, and extension recipes, see the [Developer's Guide](DEVELOPER_GUIDE.md).
+
+---
+
 ## License
 
 This project is open-source and licensed under the [MIT License](LICENSE).

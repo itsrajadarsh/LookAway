@@ -77,13 +77,35 @@ void SettingsManager::setAutostart(bool enabled) {
     emit settingsChanged();
 }
 
+bool SettingsManager::breakWindowEnabled() const {
+    return m_settings.value("ui/breakWindowEnabled", m_settings.value("ui/strictMode", true)).toBool();
+}
+
+void SettingsManager::setBreakWindowEnabled(bool enabled) {
+    m_settings.setValue("ui/breakWindowEnabled", enabled);
+    m_settings.setValue("ui/strictMode", enabled && (breakWindowStyle() == "fullscreen"));
+    emit settingsChanged();
+}
+
+QString SettingsManager::breakWindowStyle() const {
+    return m_settings.value("ui/breakWindowStyle", "fullscreen").toString();
+}
+
+void SettingsManager::setBreakWindowStyle(const QString& style) {
+    m_settings.setValue("ui/breakWindowStyle", style);
+    m_settings.setValue("ui/strictMode", breakWindowEnabled() && (style == "fullscreen"));
+    emit settingsChanged();
+}
+
 bool SettingsManager::strictModeEnabled() const {
-    return m_settings.value("ui/strictMode", true).toBool();
+    return breakWindowEnabled() && (breakWindowStyle() == "fullscreen");
 }
 
 void SettingsManager::setStrictModeEnabled(bool enabled) {
-    m_settings.setValue("ui/strictMode", enabled);
-    emit settingsChanged();
+    setBreakWindowEnabled(enabled);
+    if (enabled && breakWindowStyle().isEmpty()) {
+        setBreakWindowStyle("fullscreen");
+    }
 }
 
 bool SettingsManager::idleDetectionEnabled() const {
@@ -102,6 +124,80 @@ int SettingsManager::idleThresholdSeconds() const {
 void SettingsManager::setIdleThresholdSeconds(int seconds) {
     if (seconds < 30) seconds = 30;
     m_settings.setValue("system/idleThreshold", seconds);
+    emit settingsChanged();
+}
+
+QList<CustomPreset> SettingsManager::customPresets() const {
+    QList<CustomPreset> list;
+    int count = m_settings.value("customPresets/count", -1).toInt();
+    if (count == -1) {
+        // Default out-of-the-box custom presets
+        list.append({"Sprint (15m / 2m)", 900, 120});
+        list.append({"Eye Strain Relief (10m / 30s)", 600, 30});
+        return list;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        QString prefix = QString("customPresets/%1/").arg(i);
+        CustomPreset p;
+        p.name = m_settings.value(prefix + "name").toString();
+        p.workDurationSeconds = m_settings.value(prefix + "work", 1200).toInt();
+        p.breakDurationSeconds = m_settings.value(prefix + "break", 20).toInt();
+        if (!p.name.isEmpty()) {
+            list.append(p);
+        }
+    }
+    return list;
+}
+
+void SettingsManager::setCustomPresets(const QList<CustomPreset>& presets) {
+    int oldCount = m_settings.value("customPresets/count", 0).toInt();
+    for (int i = 0; i < oldCount; ++i) {
+        m_settings.remove(QString("customPresets/%1").arg(i));
+    }
+    m_settings.setValue("customPresets/count", presets.size());
+    for (int i = 0; i < presets.size(); ++i) {
+        QString prefix = QString("customPresets/%1/").arg(i);
+        m_settings.setValue(prefix + "name", presets[i].name);
+        m_settings.setValue(prefix + "work", presets[i].workDurationSeconds);
+        m_settings.setValue(prefix + "break", presets[i].breakDurationSeconds);
+    }
+    emit settingsChanged();
+}
+
+void SettingsManager::saveCustomPreset(const CustomPreset& preset) {
+    QList<CustomPreset> list = customPresets();
+    bool found = false;
+    for (int i = 0; i < list.size(); ++i) {
+        if (list[i].name.compare(preset.name, Qt::CaseInsensitive) == 0) {
+            list[i] = preset;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        list.append(preset);
+    }
+    setCustomPresets(list);
+}
+
+void SettingsManager::deleteCustomPreset(const QString& name) {
+    QList<CustomPreset> list = customPresets();
+    for (int i = 0; i < list.size(); ++i) {
+        if (list[i].name.compare(name, Qt::CaseInsensitive) == 0) {
+            list.removeAt(i);
+            break;
+        }
+    }
+    setCustomPresets(list);
+}
+
+QString SettingsManager::activePresetName() const {
+    return m_settings.value("timer/activePreset", "20-20-20").toString();
+}
+
+void SettingsManager::setActivePresetName(const QString& name) {
+    m_settings.setValue("timer/activePreset", name);
     emit settingsChanged();
 }
 
@@ -143,6 +239,30 @@ void SettingsManager::resetStatsIfNewDay() {
         m_settings.setValue("stats/eyeRestSecondsToday", 0);
         emit statsUpdated();
     }
+}
+
+void SettingsManager::resetDailyStats() {
+    m_settings.setValue("stats/completedToday", 0);
+    m_settings.setValue("stats/skippedToday", 0);
+    m_settings.setValue("stats/eyeRestSecondsToday", 0);
+    emit statsUpdated();
+}
+
+void SettingsManager::resetAllToDefaults() {
+    setWorkDurationSeconds(1200);
+    setBreakDurationSeconds(20);
+    setAudioEnabled(true);
+    setVolume(80);
+    setNotificationsEnabled(true);
+    setBreakWindowEnabled(true);
+    setBreakWindowStyle("popup");
+    setCloseToTray(true);
+    setAutostart(false);
+    setIdleDetectionEnabled(true);
+    setIdleThresholdSeconds(180);
+    setActivePresetName("20-20-20");
+    resetDailyStats();
+    emit settingsChanged();
 }
 
 void SettingsManager::applyAutostart(bool enabled) {

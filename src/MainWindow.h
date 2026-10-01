@@ -11,10 +11,12 @@
 #include <QComboBox>
 #include <QTabWidget>
 #include <QCloseEvent>
+#include <QMenu>
 #include "TimerEngine.h"
 #include "SettingsManager.h"
 #include "AudioManager.h"
 #include "BreakOverlayWidget.h"
+#include "CustomPresetDialog.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -34,7 +36,12 @@ private slots:
     void updateStatsDisplay();
     void saveSettingsFromUi();
     void loadSettingsToUi();
-    void applyPreset(int workMins, int breakSecs);
+    void applyPreset(int workSecs, int breakSecs, const QString& presetName);
+    void updateActivePresetHighlight();
+    void rebuildCustomPresetMenu();
+    void openCreateCustomPresetDialog();
+    void openEditCustomPresetDialog();
+    void deleteSelectedCustomPreset();
 
 private:
     void setupUi();
@@ -60,6 +67,13 @@ private:
     QPushButton* m_btnReset;
     QPushButton* m_btnSkipBreak;
 
+    // Presets UI
+    QPushButton* m_btnPreset20;
+    QPushButton* m_btnPreset25;
+    QPushButton* m_btnPreset50;
+    QPushButton* m_btnPresetCustom;
+    QMenu* m_customPresetMenu;
+
     // Stats UI
     QLabel* m_lblStatCompleted;
     QLabel* m_lblStatSkipped;
@@ -70,6 +84,9 @@ private:
     QComboBox* m_comboWorkUnit;
     QComboBox* m_comboBreakVal;
     QComboBox* m_comboBreakUnit;
+    QPushButton* m_btnSaveCurrentAsProfile;
+    QCheckBox* m_chkBreakWindow;
+    QComboBox* m_comboBreakStyle;
     QCheckBox* m_chkAudioEnabled;
     QSlider* m_sliderVolume;
     QLabel* m_lblVolumeVal;
@@ -77,7 +94,6 @@ private:
     QCheckBox* m_chkNotificationsEnabled;
     QCheckBox* m_chkCloseToTray;
     QCheckBox* m_chkAutostart;
-    QCheckBox* m_chkStrictMode;
     QCheckBox* m_chkIdleDetection;
     QComboBox* m_comboIdleVal;
     QComboBox* m_comboIdleUnit;
