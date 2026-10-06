@@ -21,7 +21,10 @@ BreakOverlayWidget::BreakOverlayWidget(DisplayMode mode, QWidget* parent)
           return f;
       }()),
       m_mode(mode),
-      m_skipDisabled(false) {
+      m_skipDisabled(false),
+      m_postponeVisible(true),
+      m_postponeSeconds(120),
+      m_isMacroBreak(false) {
 
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
@@ -68,6 +71,9 @@ BreakOverlayWidget::BreakOverlayWidget(DisplayMode mode, QWidget* parent)
     });
 
     setupUi();
+    if (m_mode != DisplayMode::BorderGlow) {
+        applyTip(ErgonomicTipCatalog::getRandomTip(false));
+    }
 }
 
 BreakOverlayWidget::DisplayMode BreakOverlayWidget::displayMode() const {
@@ -79,6 +85,9 @@ void BreakOverlayWidget::setSkipDisabled(bool disabled) {
     if (m_btnSkip) {
         m_btnSkip->setVisible(!disabled);
     }
+    if (m_btnPostpone) {
+        m_btnPostpone->setVisible(!disabled && m_postponeVisible);
+    }
     if (disabled) {
         m_enforceTopTimer->start();
     } else {
@@ -86,13 +95,61 @@ void BreakOverlayWidget::setSkipDisabled(bool disabled) {
     }
 }
 
+void BreakOverlayWidget::setPostponeVisible(bool visible) {
+    m_postponeVisible = visible;
+    if (m_btnPostpone) {
+        m_btnPostpone->setVisible(!m_skipDisabled && m_postponeVisible);
+    }
+}
+
+void BreakOverlayWidget::setPostponeSeconds(int seconds) {
+    m_postponeSeconds = seconds;
+    if (m_btnPostpone) {
+        int mins = seconds / 60;
+        if (mins > 0 && (seconds % 60 == 0)) {
+            m_btnPostpone->setText(QString("Snooze %1m (S)").arg(mins));
+        } else {
+            m_btnPostpone->setText(QString("Snooze %1s (S)").arg(seconds));
+        }
+    }
+}
+
+void BreakOverlayWidget::setBreakContext(bool isMacroBreak) {
+    m_isMacroBreak = isMacroBreak;
+    applyTip(ErgonomicTipCatalog::getRandomTip(isMacroBreak));
+}
+
+void BreakOverlayWidget::cycleNextTip() {
+    applyTip(ErgonomicTipCatalog::getNextTip(m_currentTip.title, m_isMacroBreak));
+}
+
+void BreakOverlayWidget::applyTip(const ErgonomicTip& tip) {
+    m_currentTip = tip;
+    if (m_lblCategoryBadge) {
+        m_lblCategoryBadge->setText(tip.category);
+    }
+    if (m_lblTitle) {
+        m_lblTitle->setText(tip.title);
+    }
+    if (m_lblSubtitle) {
+        m_lblSubtitle->setText(tip.instruction);
+    }
+    if (m_lblBenefit) {
+        m_lblBenefit->setText(QString("💡 %1").arg(tip.benefit));
+    }
+}
+
 void BreakOverlayWidget::setupUi() {
     if (m_mode == DisplayMode::BorderGlow) {
-        // Pure ambient perimeter highlight: transparent canvas, painted directly in paintEvent
+        // Pure ambient perimeter highlight
+        m_lblCategoryBadge = nullptr;
         m_lblTitle = nullptr;
         m_lblSubtitle = nullptr;
+        m_lblBenefit = nullptr;
         m_lblCountdown = nullptr;
         m_progressBar = nullptr;
+        m_btnNextTip = nullptr;
+        m_btnPostpone = nullptr;
         m_btnSkip = nullptr;
         return;
     }
@@ -106,7 +163,7 @@ void BreakOverlayWidget::setupUi() {
     if (m_mode == DisplayMode::FullScreen) {
         m_bgFrame->setStyleSheet(R"(
             QFrame#breakOverlayCard {
-                background-color: rgba(15, 23, 42, 235);
+                background-color: rgba(15, 23, 42, 238);
                 border: none;
             }
             QLabel {
@@ -115,8 +172,8 @@ void BreakOverlayWidget::setupUi() {
             }
         )");
     } else {
-        // Centered popup: fixed 460x300 card, clean border and rounded corners
-        setFixedSize(460, 300);
+        // Centered popup: comfortable 520x370 card
+        setFixedSize(520, 370);
         m_bgFrame->setStyleSheet(R"(
             QFrame#breakOverlayCard {
                 background-color: #1e293b;
@@ -132,49 +189,83 @@ void BreakOverlayWidget::setupUi() {
 
     QVBoxLayout* layout = new QVBoxLayout(m_bgFrame);
     layout->setAlignment(Qt::AlignCenter);
-    layout->setSpacing(m_mode == DisplayMode::FullScreen ? 18 : 10);
-    int padH = (m_mode == DisplayMode::FullScreen) ? 40 : 24;
-    int padV = (m_mode == DisplayMode::FullScreen) ? 40 : 18;
+    layout->setSpacing(m_mode == DisplayMode::FullScreen ? 12 : 8);
+    int padH = (m_mode == DisplayMode::FullScreen) ? 50 : 26;
+    int padV = (m_mode == DisplayMode::FullScreen) ? 40 : 20;
     layout->setContentsMargins(padH, padV, padH, padV);
 
     // Eye icon
     QLabel* iconLabel = new QLabel();
-    int iconSize = (m_mode == DisplayMode::FullScreen) ? 72 : 44;
+    int iconSize = (m_mode == DisplayMode::FullScreen) ? 56 : 38;
     iconLabel->setPixmap(QIcon(":/icons/app_icon.svg").pixmap(iconSize, iconSize));
     iconLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(iconLabel);
 
-    m_lblTitle = new QLabel("TIME FOR AN EYE BREAK");
+    // Category Pill Badge
+    m_lblCategoryBadge = new QLabel("EYE RELIEF");
+    m_lblCategoryBadge->setAlignment(Qt::AlignCenter);
+    m_lblCategoryBadge->setStyleSheet(R"(
+        background-color: rgba(56, 189, 248, 0.16);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 9px;
+        padding: 3px 12px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1px;
+    )");
+    layout->addWidget(m_lblCategoryBadge, 0, Qt::AlignCenter);
+
+    // Tip Title
+    m_lblTitle = new QLabel("The 20-20-20 Rule");
     if (m_mode == DisplayMode::FullScreen) {
-        m_lblTitle->setStyleSheet("font-size: 26px; font-weight: 800; color: #38bdf8; letter-spacing: 2px;");
+        m_lblTitle->setStyleSheet("font-size: 24px; font-weight: 800; color: #f8fafc; letter-spacing: 1px;");
     } else {
-        m_lblTitle->setStyleSheet("font-size: 18px; font-weight: 800; color: #38bdf8; letter-spacing: 1px;");
+        m_lblTitle->setStyleSheet("font-size: 17px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;");
     }
     m_lblTitle->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_lblTitle);
 
-    m_lblSubtitle = new QLabel("Look at an object at least 20 feet (6 meters) away to relax your eye muscles.");
+    // Tip Instruction / Subtitle
+    m_lblSubtitle = new QLabel("Look at an object at least 20 feet away to relax your eyes.");
     if (m_mode == DisplayMode::FullScreen) {
-        m_lblSubtitle->setStyleSheet("font-size: 15px; color: #94a3b8; font-weight: 500;");
+        m_lblSubtitle->setStyleSheet("font-size: 15px; color: #cbd5e1; font-weight: 500; line-height: 1.4;");
+        m_lblSubtitle->setMaximumWidth(680);
     } else {
-        m_lblSubtitle->setStyleSheet("font-size: 13px; color: #94a3b8; font-weight: 500;");
+        m_lblSubtitle->setStyleSheet("font-size: 12px; color: #cbd5e1; font-weight: 500;");
+        m_lblSubtitle->setMaximumWidth(460);
     }
     m_lblSubtitle->setAlignment(Qt::AlignCenter);
     m_lblSubtitle->setWordWrap(true);
     layout->addWidget(m_lblSubtitle);
 
+    // Clinical Benefit
+    m_lblBenefit = new QLabel("💡 Releases ciliary muscle tension and prevents accommodative fatigue.");
+    if (m_mode == DisplayMode::FullScreen) {
+        m_lblBenefit->setStyleSheet("font-size: 13px; color: #38bdf8; font-weight: 600; font-style: italic;");
+        m_lblBenefit->setMaximumWidth(680);
+    } else {
+        m_lblBenefit->setStyleSheet("font-size: 11px; color: #38bdf8; font-weight: 600; font-style: italic;");
+        m_lblBenefit->setMaximumWidth(460);
+    }
+    m_lblBenefit->setAlignment(Qt::AlignCenter);
+    m_lblBenefit->setWordWrap(true);
+    layout->addWidget(m_lblBenefit);
+
+    // Countdown Display
     m_lblCountdown = new QLabel("00:20");
     if (m_mode == DisplayMode::FullScreen) {
-        m_lblCountdown->setStyleSheet("font-size: 68px; font-weight: 900; color: #ffffff; font-family: 'Consolas', monospace;");
+        m_lblCountdown->setStyleSheet("font-size: 60px; font-weight: 900; color: #ffffff; font-family: 'Consolas', monospace;");
     } else {
-        m_lblCountdown->setStyleSheet("font-size: 44px; font-weight: 900; color: #ffffff; font-family: 'Consolas', monospace;");
+        m_lblCountdown->setStyleSheet("font-size: 38px; font-weight: 900; color: #ffffff; font-family: 'Consolas', monospace;");
     }
     m_lblCountdown->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_lblCountdown);
 
+    // Progress Bar
     m_progressBar = new QProgressBar();
     m_progressBar->setFixedWidth(m_mode == DisplayMode::FullScreen ? 360 : 280);
-    m_progressBar->setFixedHeight(m_mode == DisplayMode::FullScreen ? 10 : 8);
+    m_progressBar->setFixedHeight(m_mode == DisplayMode::FullScreen ? 8 : 6);
     m_progressBar->setRange(0, 100);
     m_progressBar->setTextVisible(false);
     m_progressBar->setStyleSheet(R"(
@@ -190,9 +281,61 @@ void BreakOverlayWidget::setupUi() {
     )");
     layout->addWidget(m_progressBar, 0, Qt::AlignCenter);
 
-    m_btnSkip = new QPushButton("Skip Break (Esc)");
-    m_btnSkip->setFixedSize(m_mode == DisplayMode::FullScreen ? 150 : 130, 
-                            m_mode == DisplayMode::FullScreen ? 40 : 34);
+    // Action Buttons Bar
+    QHBoxLayout* buttonBar = new QHBoxLayout();
+    buttonBar->setSpacing(m_mode == DisplayMode::FullScreen ? 12 : 8);
+    buttonBar->setAlignment(Qt::AlignCenter);
+
+    // Cycle Next Routine Button
+    m_btnNextTip = new QPushButton("Next Tip ↻");
+    m_btnNextTip->setCursor(Qt::PointingHandCursor);
+    m_btnNextTip->setToolTip("Cycle to another guided exercise (R or Space)");
+    m_btnNextTip->setStyleSheet(R"(
+        QPushButton {
+            background-color: rgba(30, 41, 59, 220);
+            color: #94a3b8;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+        }
+        QPushButton:hover {
+            background-color: rgba(51, 65, 85, 240);
+            color: #f8fafc;
+            border-color: #64748b;
+        }
+    )");
+    connect(m_btnNextTip, &QPushButton::clicked, this, &BreakOverlayWidget::cycleNextTip);
+    buttonBar->addWidget(m_btnNextTip);
+
+    // Postpone / Snooze Button
+    m_btnPostpone = new QPushButton(QString("Snooze %1m (S)").arg(m_postponeSeconds / 60));
+    m_btnPostpone->setCursor(Qt::PointingHandCursor);
+    m_btnPostpone->setToolTip("Postpone this break by a few minutes without counting as skipped (S)");
+    m_btnPostpone->setStyleSheet(R"(
+        QPushButton {
+            background-color: rgba(217, 119, 6, 0.22);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 14px;
+        }
+        QPushButton:hover {
+            background-color: rgba(217, 119, 6, 0.38);
+            border-color: #f59e0b;
+            color: #fef3c7;
+        }
+    )");
+    connect(m_btnPostpone, &QPushButton::clicked, this, [this]() {
+        emit postponeRequested(m_postponeSeconds);
+    });
+    buttonBar->addWidget(m_btnPostpone);
+
+    // Skip Break Button
+    m_btnSkip = new QPushButton("Skip (Esc)");
     m_btnSkip->setCursor(Qt::PointingHandCursor);
     m_btnSkip->setStyleSheet(R"(
         QPushButton {
@@ -200,15 +343,18 @@ void BreakOverlayWidget::setupUi() {
             color: #f8fafc;
             border: 1px solid #475569;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
+            padding: 6px 14px;
         }
         QPushButton:hover {
             background-color: rgba(71, 85, 105, 240);
         }
     )");
     connect(m_btnSkip, &QPushButton::clicked, this, &BreakOverlayWidget::skipRequested);
-    layout->addWidget(m_btnSkip, 0, Qt::AlignCenter);
+    buttonBar->addWidget(m_btnSkip);
+
+    layout->addLayout(buttonBar);
 
     outerLayout->addWidget(m_bgFrame);
 }
@@ -302,6 +448,12 @@ void BreakOverlayWidget::keyPressEvent(QKeyEvent* event) {
         if (!m_skipDisabled) {
             emit skipRequested();
         }
+    } else if (event->key() == Qt::Key_S) {
+        if (!m_skipDisabled && m_postponeVisible) {
+            emit postponeRequested(m_postponeSeconds);
+        }
+    } else if (event->key() == Qt::Key_Space || event->key() == Qt::Key_R) {
+        cycleNextTip();
     } else {
         QWidget::keyPressEvent(event);
     }

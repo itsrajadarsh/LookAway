@@ -12,11 +12,16 @@
 #include <QTabWidget>
 #include <QCloseEvent>
 #include <QMenu>
+#include <QLineEdit>
 #include "TimerEngine.h"
 #include "SettingsManager.h"
 #include "AudioManager.h"
 #include "BreakOverlayWidget.h"
 #include "CustomPresetDialog.h"
+#include "WeeklyAnalyticsWidget.h"
+#include "ScreenFlashWidget.h"
+#include "GlobalHotkeyManager.h"
+#include "LinuxIdleDetector.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -42,11 +47,16 @@ private slots:
     void openCreateCustomPresetDialog();
     void openEditCustomPresetDialog();
     void deleteSelectedCustomPreset();
+    void handlePreBreakWarning(int secondsUntilBreak, TimerEngine::ActiveBreakType breakType);
+    void handleDndStateChanged(bool active, int secondsRemaining);
 
 private:
     void setupUi();
     QWidget* createDashboardTab();
-    QWidget* createSettingsTab();
+    QWidget* createAnalyticsTab();
+    QWidget* createAlertsTab();
+    QWidget* createAudioTab();
+    QWidget* createPreferencesTab();
     void applyTheme();
     int durationToSeconds(QComboBox* valCombo, QComboBox* unitCombo) const;
     void secondsToUi(int totalSeconds, QComboBox* valCombo, QComboBox* unitCombo);
@@ -61,11 +71,15 @@ private:
 
     // Dashboard UI
     QLabel* m_statusBadgeLabel;
+    QPushButton* m_btnDnd;
+    QMenu* m_dndMenu;
+    QPushButton* m_btnEndDnd;
     QLabel* m_countdownLabel;
     QProgressBar* m_progressBar;
     QLabel* m_lblSecondaryTimerStatus;
     QPushButton* m_btnPlayPause;
     QPushButton* m_btnReset;
+    QPushButton* m_btnPostponeBreak;
     QPushButton* m_btnSkipBreak;
 
     // Presets UI
@@ -78,8 +92,10 @@ private:
 
     // Stats UI
     QLabel* m_lblStatCompleted;
+    QLabel* m_lblStatPostponed;
     QLabel* m_lblStatSkipped;
     QLabel* m_lblStatRestTime;
+    WeeklyAnalyticsWidget* m_weeklyAnalyticsWidget;
 
     // Settings UI
     QComboBox* m_comboWorkVal;
@@ -91,18 +107,45 @@ private:
     QComboBox* m_comboSecondaryPreset;
     QCheckBox* m_chkBreakWindow;
     QComboBox* m_comboBreakStyle;
+    QCheckBox* m_chkPreBreakWarning;
+    QComboBox* m_comboPreBreakWarningSecs;
+    QCheckBox* m_chkPostponeBreak;
+    QComboBox* m_comboPostponeMins;
     QCheckBox* m_chkForceDisableSkip;
     QCheckBox* m_chkSuppressOnFullscreen;
     QCheckBox* m_chkAudioEnabled;
     QSlider* m_sliderVolume;
     QLabel* m_lblVolumeVal;
-    QPushButton* m_btnTestAudio;
+    QComboBox* m_comboSoundPack;
+    QWidget* m_customSoundWidget;
+    QLineEdit* m_editCustomWorkPath;
+    QLineEdit* m_editCustomBreakPath;
+    QPushButton* m_btnBrowseCustomWork;
+    QPushButton* m_btnBrowseCustomBreak;
+    QPushButton* m_btnTestWorkSound;
+    QPushButton* m_btnTestBreakSound;
     QCheckBox* m_chkNotificationsEnabled;
     QCheckBox* m_chkCloseToTray;
     QCheckBox* m_chkAutostart;
     QCheckBox* m_chkIdleDetection;
     QComboBox* m_comboIdleVal;
     QComboBox* m_comboIdleUnit;
+    QLabel* m_lblIdleBackendStatus;
+
+    // Screen Flash UI
+    QCheckBox* m_chkScreenFlash;
+    QComboBox* m_comboScreenFlashStyle;
+    QPushButton* m_btnPreviewFlash;
+
+    // Hotkeys UI & Manager
+    GlobalHotkeyManager* m_hotkeyManager;
+    QCheckBox* m_chkGlobalHotkeys;
+    QLineEdit* m_editHotkeyPause;
+    QLineEdit* m_editHotkeySnooze;
+    QLineEdit* m_editHotkeySkip;
+    QLineEdit* m_editHotkeyDnd;
+    QPushButton* m_btnResetHotkeys;
+    QLabel* m_lblHotkeyStatus;
 };
 
 #endif // MAINWINDOW_H

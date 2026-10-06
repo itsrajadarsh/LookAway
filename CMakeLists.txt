@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(LookAway VERSION 1.1.0 LANGUAGES CXX)
+project(LookAway VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,8 +29,23 @@ set(SOURCES
     src/CustomPresetDialog.cpp
     src/FullscreenDetector.h
     src/FullscreenDetector.cpp
+    src/WeeklyAnalyticsWidget.h
+    src/WeeklyAnalyticsWidget.cpp
+    src/ErgonomicTipCatalog.h
+    src/ErgonomicTipCatalog.cpp
+    src/ScreenFlashWidget.h
+    src/ScreenFlashWidget.cpp
+    src/LinuxIdleDetector.h
+    src/LinuxIdleDetector.cpp
+    src/GlobalHotkeyManager.h
+    src/GlobalHotkeyManager.cpp
     resources/resources.qrc
 )
+
+if(UNIX AND NOT APPLE)
+    find_package(Qt6 REQUIRED COMPONENTS DBus)
+    find_package(X11 REQUIRED)
+endif()
 
 add_executable(LookAway ${SOURCES})
 
@@ -39,6 +54,10 @@ target_link_libraries(LookAway PRIVATE
     Qt6::Multimedia
     Qt6::Network
 )
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(LookAway PRIVATE Qt6::DBus X11::X11)
+endif()
 
 if(WIN32)
     set_target_properties(LookAway PROPERTIES

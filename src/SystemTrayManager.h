@@ -23,6 +23,7 @@ signals:
 private slots:
     void handleStateChanged(TimerEngine::State newState, TimerEngine::State oldState);
     void handleTick(int secondsRemaining, int totalSeconds);
+    void handlePreBreakWarning(int secondsUntilBreak, TimerEngine::ActiveBreakType breakType);
     void handleWorkCompleted();
     void handleBreakCompleted();
     void handleTrayActivated(QSystemTrayIcon::ActivationReason reason);
@@ -35,9 +36,15 @@ private:
     SettingsManager* m_settings;
     QSystemTrayIcon* m_trayIcon;
     QMenu* m_trayMenu;
-
     QAction* m_actionTogglePlayPause;
+    QAction* m_actionPostponeBreak;
     QAction* m_actionSkipBreak;
+    QMenu* m_dndMenu;
+    QAction* m_actionDnd30m;
+    QAction* m_actionDnd1h;
+    QAction* m_actionDnd2h;
+    QAction* m_actionDndIndefinite;
+    QAction* m_actionDndDisable;
     QAction* m_actionShowDashboard;
     QAction* m_actionSettings;
     QAction* m_actionQuit;

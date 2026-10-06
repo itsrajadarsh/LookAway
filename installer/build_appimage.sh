@@ -2,7 +2,7 @@
 # ==============================================================================
 # LookAway - Linux AppImage Creation Script
 # ==============================================================================
-# Equivalent to installer/setup_script.iss for Linux.
+# Equivalent to installer/build_exe.iss for Linux.
 # Packages LookAway into a self-contained, portable AppImage for distribution.
 #
 # Usage:
@@ -64,7 +64,7 @@ elif [ -n "${VERSION:-}" ]; then
     VERSION="$VERSION"
 else
     # Auto-extract from CMakeLists.txt
-    VERSION=$(grep -E 'project\s*\(.*VERSION\s+[0-9.]+' "${REPO_ROOT}/CMakeLists.txt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "1.1.0")
+    VERSION=$(grep -E 'project\s*\(.*VERSION\s+[0-9.]+' "${REPO_ROOT}/CMakeLists.txt" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "2.0.0")
 fi
 echo "[+] Target Version: ${VERSION}"
 
@@ -121,29 +121,33 @@ if [ "$DO_BUILD" = true ]; then
     cmake --build "$BUILD_DIR" --config Release -j"$(nproc)"
 fi
 
-# Locate compiled executable
+# Locate compiled executable (strictly using build-linux)
 if [ -f "${BUILD_DIR}/LookAway" ]; then
     BINARY_PATH="${BUILD_DIR}/LookAway"
-elif [ -f "${REPO_ROOT}/build/LookAway" ]; then
-    BINARY_PATH="${REPO_ROOT}/build/LookAway"
+elif [ -f "${REPO_ROOT}/build-linux/LookAway" ]; then
+    BINARY_PATH="${REPO_ROOT}/build-linux/LookAway"
 else
-    echo "[-] ERROR: LookAway executable not found in ${BUILD_DIR} or ${REPO_ROOT}/build!"
+    echo "[-] ERROR: LookAway executable not found in ${BUILD_DIR}!"
     exit 1
 fi
 echo "[+] Using binary: ${BINARY_PATH}"
 
-# --- 4. Setup Packaging Workspace ---
-mkdir -p "${OUTPUT_DIR}/AppDir/usr/bin"
-mkdir -p "${OUTPUT_DIR}/AppDir/usr/share/applications"
-mkdir -p "${OUTPUT_DIR}/AppDir/usr/share/icons/hicolor/256x256/apps"
+# --- 4. Setup Packaging Workspace (inside build-linux) ---
+PKG_WORK_DIR="${REPO_ROOT}/build-linux/appimage_workspace"
+TOOLS_DIR="${REPO_ROOT}/build-linux/tools"
+
+mkdir -p "${PKG_WORK_DIR}/AppDir/usr/bin"
+mkdir -p "${PKG_WORK_DIR}/AppDir/usr/share/applications"
+mkdir -p "${PKG_WORK_DIR}/AppDir/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "${TOOLS_DIR}"
+mkdir -p "${OUTPUT_DIR}"
 
 # Copy binary to AppDir
-cp -f "${BINARY_PATH}" "${OUTPUT_DIR}/AppDir/usr/bin/LookAway"
-chmod +x "${OUTPUT_DIR}/AppDir/usr/bin/LookAway"
+cp -f "${BINARY_PATH}" "${PKG_WORK_DIR}/AppDir/usr/bin/LookAway"
+chmod +x "${PKG_WORK_DIR}/AppDir/usr/bin/LookAway"
 
-# Ensure Desktop entry exists
-if [ ! -f "${OUTPUT_DIR}/LookAway.desktop" ]; then
-    cat << 'EOF' > "${OUTPUT_DIR}/LookAway.desktop"
+# Ensure Desktop entry exists in packaging workspace
+cat << 'EOF' > "${PKG_WORK_DIR}/LookAway.desktop"
 [Desktop Entry]
 Type=Application
 Name=LookAway
@@ -151,38 +155,40 @@ Exec=LookAway
 Icon=LookAway
 Categories=Utility;
 EOF
-fi
 
-# Ensure Icon exists
-if [ ! -f "${OUTPUT_DIR}/LookAway.png" ]; then
-    if [ -f "${OUTPUT_DIR}/AppDir/usr/share/icons/hicolor/256x256/apps/LookAway.png" ]; then
-        cp "${OUTPUT_DIR}/AppDir/usr/share/icons/hicolor/256x256/apps/LookAway.png" "${OUTPUT_DIR}/LookAway.png"
+# Ensure Icon exists (generate from SVG if needed)
+if [ ! -f "${REPO_ROOT}/resources/icons/app_icon.png" ]; then
+    if command -v magick >/dev/null 2>&1; then
+        magick -background none -density 300 "${REPO_ROOT}/resources/icons/app_icon.svg" -resize 256x256 "${REPO_ROOT}/resources/icons/app_icon.png"
+    elif command -v convert >/dev/null 2>&1; then
+        convert -background none "${REPO_ROOT}/resources/icons/app_icon.svg" -resize 256x256 "${REPO_ROOT}/resources/icons/app_icon.png"
     fi
 fi
+cp -f "${REPO_ROOT}/resources/icons/app_icon.png" "${PKG_WORK_DIR}/LookAway.png"
 
-# --- 5. Download Packaging Tools & Runtime (if missing) ---
-cd "${OUTPUT_DIR}"
-
+# --- 5. Download Packaging Tools & Runtime (cached in build-linux/tools) ---
 export APPIMAGE_EXTRACT_AND_RUN=1
 
-if [ ! -f "linuxdeploy-x86_64.AppImage" ]; then
+if [ ! -f "${TOOLS_DIR}/linuxdeploy-x86_64.AppImage" ]; then
     echo "[+] Downloading linuxdeploy-x86_64.AppImage..."
-    wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-    chmod +x linuxdeploy-x86_64.AppImage
+    wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage" -O "${TOOLS_DIR}/linuxdeploy-x86_64.AppImage"
+    chmod +x "${TOOLS_DIR}/linuxdeploy-x86_64.AppImage"
 fi
 
-if [ ! -f "linuxdeploy-plugin-qt-x86_64.AppImage" ]; then
+if [ ! -f "${TOOLS_DIR}/linuxdeploy-plugin-qt-x86_64.AppImage" ]; then
     echo "[+] Downloading linuxdeploy-plugin-qt-x86_64.AppImage..."
-    wget -c "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
-    chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+    wget -c "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage" -O "${TOOLS_DIR}/linuxdeploy-plugin-qt-x86_64.AppImage"
+    chmod +x "${TOOLS_DIR}/linuxdeploy-plugin-qt-x86_64.AppImage"
 fi
 
-if [ ! -f "runtime-x86_64" ]; then
+if [ ! -f "${TOOLS_DIR}/runtime-x86_64" ]; then
     echo "[+] Downloading runtime-x86_64..."
-    wget -c "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64" -O "runtime-x86_64"
-    chmod +x runtime-x86_64
+    wget -c "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64" -O "${TOOLS_DIR}/runtime-x86_64"
+    chmod +x "${TOOLS_DIR}/runtime-x86_64"
 fi
-export LDAI_RUNTIME_FILE="${OUTPUT_DIR}/runtime-x86_64"
+
+export LDAI_RUNTIME_FILE="${TOOLS_DIR}/runtime-x86_64"
+export PATH="${TOOLS_DIR}:${PATH}"
 
 # --- 6. Bundle AppImage ---
 echo "[+] Bundling AppImage via linuxdeploy..."
@@ -190,7 +196,9 @@ export QMAKE="${QMAKE}"
 export VERSION="${VERSION}"
 export LINUXDEPLOY_OUTPUT_VERSION="${VERSION}"
 
-./linuxdeploy-x86_64.AppImage \
+cd "${PKG_WORK_DIR}"
+
+"${TOOLS_DIR}/linuxdeploy-x86_64.AppImage" \
     --appdir AppDir \
     --desktop-file LookAway.desktop \
     --icon-file LookAway.png \
@@ -198,20 +206,20 @@ export LINUXDEPLOY_OUTPUT_VERSION="${VERSION}"
     --output appimage
 
 TARGET_APPIMAGE="LookAway-${VERSION}-x86_64.AppImage"
-GENERIC_APPIMAGE="LookAway-x86_64.AppImage"
 
-if [ -f "${TARGET_APPIMAGE}" ]; then
-    chmod +x "${TARGET_APPIMAGE}"
-    # Keep generic name in sync
-    cp -f "${TARGET_APPIMAGE}" "${GENERIC_APPIMAGE}"
-    chmod +x "${GENERIC_APPIMAGE}"
+if [ -f "${PKG_WORK_DIR}/${TARGET_APPIMAGE}" ]; then
+    chmod +x "${PKG_WORK_DIR}/${TARGET_APPIMAGE}"
+    mv -f "${PKG_WORK_DIR}/${TARGET_APPIMAGE}" "${OUTPUT_DIR}/${TARGET_APPIMAGE}"
 fi
+
+# Clean up any legacy unversioned duplicate in output directory
+rm -f "${OUTPUT_DIR}/LookAway-x86_64.AppImage"
 
 echo "=========================================================="
 echo "  BUILD SUCCESSFUL!"
 echo "=========================================================="
-echo "Generated AppImages in: ${OUTPUT_DIR}"
-ls -lh "${OUTPUT_DIR}"/*.AppImage | grep -v 'linuxdeploy'
+echo "Generated AppImage: ${OUTPUT_DIR}/${TARGET_APPIMAGE}"
+ls -lh "${OUTPUT_DIR}/${TARGET_APPIMAGE}"
 echo ""
 echo "To test run:"
 echo "  APPIMAGE_EXTRACT_AND_RUN=1 ${OUTPUT_DIR}/${TARGET_APPIMAGE}"

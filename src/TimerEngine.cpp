@@ -1,5 +1,6 @@
 #include "TimerEngine.h"
 #include "FullscreenDetector.h"
+#include "LinuxIdleDetector.h"
 #include <QTime>
 
 #ifdef Q_OS_WIN
@@ -26,7 +27,12 @@ TimerEngine::TimerEngine(SettingsManager* settings, QObject* parent)
       m_totalDurationSeconds(0),
       m_secondarySecondsRemaining(0),
       m_secondaryTotalDurationSeconds(0),
-      m_wasPausedForIdle(false) {
+      m_wasPausedForIdle(false),
+      m_preBreakWarningFired(false),
+      m_secondaryPreBreakWarningFired(false),
+      m_stateBeforeDnd(State::Idle),
+      m_dndActive(false),
+      m_dndSecondsRemaining(0) {
 
     connect(&m_timer, &QTimer::timeout, this, &TimerEngine::handleOneSecondTick);
     connect(m_settings, &SettingsManager::settingsChanged, this, &TimerEngine::handleSettingsChanged);
@@ -63,6 +69,34 @@ int TimerEngine::secondaryTotalDurationSeconds() const {
 
 bool TimerEngine::isPausedForIdle() const {
     return m_wasPausedForIdle;
+}
+
+bool TimerEngine::isDndActive() const {
+    return m_dndActive;
+}
+
+int TimerEngine::dndSecondsRemaining() const {
+    return m_dndSecondsRemaining;
+}
+
+QString TimerEngine::formattedDndTimeRemaining() const {
+    if (m_dndSecondsRemaining < 0) {
+        return "Indefinite";
+    }
+    if (m_dndSecondsRemaining >= 3600) {
+        int hrs = m_dndSecondsRemaining / 3600;
+        int mins = (m_dndSecondsRemaining % 3600) / 60;
+        int secs = m_dndSecondsRemaining % 60;
+        return QString("%1:%2:%3")
+            .arg(hrs, 2, 10, QChar('0'))
+            .arg(mins, 2, 10, QChar('0'))
+            .arg(secs, 2, 10, QChar('0'));
+    }
+    int mins = m_dndSecondsRemaining / 60;
+    int secs = m_dndSecondsRemaining % 60;
+    return QString("%1:%2")
+        .arg(mins, 2, 10, QChar('0'))
+        .arg(secs, 2, 10, QChar('0'));
 }
 
 QString TimerEngine::formattedTimeRemaining() const {
@@ -108,6 +142,8 @@ void TimerEngine::start() {
             m_secondaryTotalDurationSeconds = m_settings->secondaryWorkDurationSeconds();
             m_secondarySecondsRemaining = m_secondaryTotalDurationSeconds;
             m_activeBreakType = ActiveBreakType::None;
+            m_preBreakWarningFired = false;
+            m_secondaryPreBreakWarningFired = false;
             setState(State::Working);
         } else {
             setState(m_previousState == State::Idle ? State::Working : m_previousState);
@@ -141,6 +177,14 @@ void TimerEngine::resume() {
 
 void TimerEngine::stop() {
     m_wasPausedForIdle = false;
+    m_preBreakWarningFired = false;
+    m_secondaryPreBreakWarningFired = false;
+    if (m_dndActive) {
+        m_dndActive = false;
+        m_dndSecondsRemaining = 0;
+        m_settings->setDndActive(false);
+        emit dndStateChanged(false, 0);
+    }
     m_timer.stop();
     m_previousState = State::Idle;
     m_activeBreakType = ActiveBreakType::None;
@@ -174,11 +218,103 @@ void TimerEngine::skipBreak() {
         }
 
         m_activeBreakType = ActiveBreakType::None;
+        m_preBreakWarningFired = false;
+        m_secondaryPreBreakWarningFired = false;
         setState(State::Working);
         m_timer.start(1000);
         emit tick(m_secondsRemaining, m_totalDurationSeconds);
         emit compoundTick(m_secondsRemaining, m_totalDurationSeconds, m_secondarySecondsRemaining, m_secondaryTotalDurationSeconds);
     }
+}
+
+void TimerEngine::postponeBreak(int postponeSeconds) {
+    if (m_settings->forceDisableSkip()) {
+        return; // Postpone disabled in strict mode
+    }
+
+    if (postponeSeconds <= 0) {
+        postponeSeconds = m_settings->defaultPostponeSeconds();
+    }
+
+    if (m_state == State::Breaking || (m_state == State::Paused && m_previousState == State::Breaking)) {
+        m_settings->incrementBreaksPostponed();
+        m_wasPausedForIdle = false;
+        m_timer.stop();
+
+        if (m_activeBreakType == ActiveBreakType::Secondary) {
+            m_secondarySecondsRemaining = postponeSeconds;
+            m_secondaryTotalDurationSeconds = qMax(m_secondaryTotalDurationSeconds, postponeSeconds);
+            m_secondaryPreBreakWarningFired = false;
+        } else {
+            m_secondsRemaining = postponeSeconds;
+            m_totalDurationSeconds = qMax(m_totalDurationSeconds, postponeSeconds);
+            m_preBreakWarningFired = false;
+        }
+
+        m_activeBreakType = ActiveBreakType::None;
+        setState(State::Working);
+        m_timer.start(1000);
+        emit tick(m_secondsRemaining, m_totalDurationSeconds);
+        emit compoundTick(m_secondsRemaining, m_totalDurationSeconds, m_secondarySecondsRemaining, m_secondaryTotalDurationSeconds);
+        emit breakPostponed(postponeSeconds);
+    } else if (m_state == State::Working) {
+        m_settings->incrementBreaksPostponed();
+        bool concurrent = m_settings->concurrentPresetsEnabled();
+        if (concurrent && m_secondarySecondsRemaining < postponeSeconds) {
+            m_secondarySecondsRemaining = postponeSeconds;
+            m_secondaryTotalDurationSeconds = qMax(m_secondaryTotalDurationSeconds, postponeSeconds);
+            m_secondaryPreBreakWarningFired = false;
+        }
+        if (m_secondsRemaining < postponeSeconds) {
+            m_secondsRemaining = postponeSeconds;
+            m_totalDurationSeconds = qMax(m_totalDurationSeconds, postponeSeconds);
+            m_preBreakWarningFired = false;
+        }
+        emit tick(m_secondsRemaining, m_totalDurationSeconds);
+        emit compoundTick(m_secondsRemaining, m_totalDurationSeconds, m_secondarySecondsRemaining, m_secondaryTotalDurationSeconds);
+        emit breakPostponed(postponeSeconds);
+    }
+}
+
+void TimerEngine::enableDnd(int durationSeconds) {
+    if (m_dndActive) {
+        m_dndSecondsRemaining = durationSeconds;
+        emit dndStateChanged(true, m_dndSecondsRemaining);
+        return;
+    }
+
+    m_stateBeforeDnd = (m_state == State::Paused ? m_previousState : m_state);
+    if (m_stateBeforeDnd == State::Idle) {
+        m_stateBeforeDnd = State::Working;
+    }
+
+    m_dndActive = true;
+    m_dndSecondsRemaining = durationSeconds;
+    m_settings->setDndActive(true);
+
+    if (m_state == State::Breaking) {
+        m_activeBreakType = ActiveBreakType::None;
+    }
+
+    setState(State::Paused);
+    m_timer.start(1000); // Keep timer ticking for DND countdown
+    emit dndStateChanged(true, m_dndSecondsRemaining);
+}
+
+void TimerEngine::disableDnd() {
+    if (!m_dndActive) {
+        return;
+    }
+
+    m_dndActive = false;
+    m_dndSecondsRemaining = 0;
+    m_settings->setDndActive(false);
+
+    setState(State::Working);
+    m_timer.start(1000);
+    emit tick(m_secondsRemaining, m_totalDurationSeconds);
+    emit compoundTick(m_secondsRemaining, m_totalDurationSeconds, m_secondarySecondsRemaining, m_secondaryTotalDurationSeconds);
+    emit dndStateChanged(false, 0);
 }
 
 void TimerEngine::setState(State newState) {
@@ -190,6 +326,18 @@ void TimerEngine::setState(State newState) {
 }
 
 void TimerEngine::handleOneSecondTick() {
+    if (m_dndActive) {
+        if (m_dndSecondsRemaining > 0) {
+            m_dndSecondsRemaining--;
+            emit dndStateChanged(true, m_dndSecondsRemaining);
+            if (m_dndSecondsRemaining <= 0) {
+                disableDnd();
+                emit dndExpired();
+            }
+        }
+        return;
+    }
+
     checkIdleDetection();
 
     if (m_state == State::Paused) {
@@ -209,6 +357,18 @@ void TimerEngine::handleOneSecondTick() {
 
         emit tick(m_secondsRemaining, m_totalDurationSeconds);
         emit compoundTick(m_secondsRemaining, m_totalDurationSeconds, m_secondarySecondsRemaining, m_secondaryTotalDurationSeconds);
+
+        // Pre-break warning check
+        if (m_settings->preBreakWarningEnabled()) {
+            int warnSec = m_settings->preBreakWarningSeconds();
+            if (concurrent && m_secondarySecondsRemaining == warnSec && !m_secondaryPreBreakWarningFired && m_secondaryTotalDurationSeconds > warnSec) {
+                m_secondaryPreBreakWarningFired = true;
+                emit preBreakWarning(warnSec, ActiveBreakType::Secondary);
+            } else if (m_secondsRemaining == warnSec && !m_preBreakWarningFired && m_totalDurationSeconds > warnSec) {
+                m_preBreakWarningFired = true;
+                emit preBreakWarning(warnSec, ActiveBreakType::Primary);
+            }
+        }
 
         // Check if secondary (Macro) break expires first or simultaneously
         if (concurrent && m_secondarySecondsRemaining <= 0) {
@@ -261,10 +421,12 @@ void TimerEngine::handleOneSecondTick() {
                 emit breakCompleted();
                 m_secondaryTotalDurationSeconds = m_settings->secondaryWorkDurationSeconds();
                 m_secondarySecondsRemaining = m_secondaryTotalDurationSeconds;
+                m_secondaryPreBreakWarningFired = false;
 
                 // Macro break resets the micro timer as well
                 m_totalDurationSeconds = m_settings->workDurationSeconds();
                 m_secondsRemaining = m_totalDurationSeconds;
+                m_preBreakWarningFired = false;
 
                 m_activeBreakType = ActiveBreakType::None;
                 setState(State::Working);
@@ -282,6 +444,7 @@ void TimerEngine::handleOneSecondTick() {
                 emit breakCompleted();
                 m_totalDurationSeconds = m_settings->workDurationSeconds();
                 m_secondsRemaining = m_totalDurationSeconds;
+                m_preBreakWarningFired = false;
 
                 m_activeBreakType = ActiveBreakType::None;
                 setState(State::Working);
@@ -293,12 +456,16 @@ void TimerEngine::handleOneSecondTick() {
 }
 
 void TimerEngine::checkIdleDetection() {
-#ifdef Q_OS_WIN
     if (!m_settings->idleDetectionEnabled()) {
         return;
     }
 
+#ifdef Q_OS_WIN
     qint64 idleMs = getSystemIdleTimeMs();
+#else
+    qint64 idleMs = LinuxIdleDetector::getIdletimeMs();
+#endif
+
     qint64 thresholdMs = static_cast<qint64>(m_settings->idleThresholdSeconds()) * 1000;
 
     if (m_state == State::Working && idleMs >= thresholdMs) {
@@ -311,7 +478,6 @@ void TimerEngine::checkIdleDetection() {
         setState(m_previousState == State::Idle ? State::Working : m_previousState);
         emit idleResumeTriggered();
     }
-#endif
 }
 
 void TimerEngine::handleSettingsChanged() {

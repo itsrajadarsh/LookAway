@@ -15,12 +15,14 @@ public:
 public slots:
     void playWorkCompleteChime();
     void playBreakCompleteChime();
-    void playTestChime();
+    void playTestChime(const QString& type = "work");
 
 private slots:
     void syncSettings();
 
 private:
+    QUrl resolveSoundUrl(const QString& soundType) const;
+
     SettingsManager* m_settings;
     TimerEngine* m_timerEngine;
     QSoundEffect m_workSound;

@@ -6,5 +6,11 @@
         <file>icons/tray_paused.svg</file>
         <file>sounds/chime_work.wav</file>
         <file>sounds/chime_break.wav</file>
+        <file>sounds/zen_work.wav</file>
+        <file>sounds/zen_break.wav</file>
+        <file>sounds/marimba_work.wav</file>
+        <file>sounds/marimba_break.wav</file>
+        <file>sounds/bell_work.wav</file>
+        <file>sounds/bell_break.wav</file>
     </qresource>
 </RCC>

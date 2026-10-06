@@ -56,7 +56,14 @@ compile_commands.json
 *_qmlcache.qrc
 
 
-installer_output/
+installer_output/*
+!installer_output/*/
+installer_output/*/*
+!installer_output/**/*.md
 installer/*
-!installer/setup_script.iss
+!installer/build_exe.iss
 !installer/build_appimage.sh
+!installer/README.md
+
+# Temporary scratch test files
+scratch/

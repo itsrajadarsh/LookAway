@@ -126,6 +126,150 @@ void SettingsManager::setSuppressOnFullscreen(bool suppress) {
     emit settingsChanged();
 }
 
+bool SettingsManager::preBreakWarningEnabled() const {
+    return m_settings.value("notification/preBreakWarningEnabled", true).toBool();
+}
+
+void SettingsManager::setPreBreakWarningEnabled(bool enabled) {
+    m_settings.setValue("notification/preBreakWarningEnabled", enabled);
+    emit settingsChanged();
+}
+
+int SettingsManager::preBreakWarningSeconds() const {
+    return m_settings.value("notification/preBreakWarningSeconds", 30).toInt();
+}
+
+void SettingsManager::setPreBreakWarningSeconds(int seconds) {
+    m_settings.setValue("notification/preBreakWarningSeconds", seconds);
+    emit settingsChanged();
+}
+
+bool SettingsManager::postponeEnabled() const {
+    return m_settings.value("ui/postponeEnabled", true).toBool();
+}
+
+void SettingsManager::setPostponeEnabled(bool enabled) {
+    m_settings.setValue("ui/postponeEnabled", enabled);
+    emit settingsChanged();
+}
+
+int SettingsManager::defaultPostponeSeconds() const {
+    return m_settings.value("ui/defaultPostponeSeconds", 120).toInt();
+}
+
+void SettingsManager::setDefaultPostponeSeconds(int seconds) {
+    m_settings.setValue("ui/defaultPostponeSeconds", seconds);
+    emit settingsChanged();
+}
+
+bool SettingsManager::dndActive() const {
+    return m_settings.value("system/dndActive", false).toBool();
+}
+
+void SettingsManager::setDndActive(bool active) {
+    m_settings.setValue("system/dndActive", active);
+    emit settingsChanged();
+}
+
+int SettingsManager::dndDurationSeconds() const {
+    return m_settings.value("system/dndDurationSeconds", 1800).toInt();
+}
+
+void SettingsManager::setDndDurationSeconds(int seconds) {
+    m_settings.setValue("system/dndDurationSeconds", seconds);
+    emit settingsChanged();
+}
+
+QString SettingsManager::soundPack() const {
+    return m_settings.value("audio/soundPack", "default").toString();
+}
+
+void SettingsManager::setSoundPack(const QString& pack) {
+    m_settings.setValue("audio/soundPack", pack);
+    emit settingsChanged();
+}
+
+QString SettingsManager::customWorkSoundPath() const {
+    return m_settings.value("audio/customWorkSoundPath", "").toString();
+}
+
+void SettingsManager::setCustomWorkSoundPath(const QString& path) {
+    m_settings.setValue("audio/customWorkSoundPath", path);
+    emit settingsChanged();
+}
+
+QString SettingsManager::customBreakSoundPath() const {
+    return m_settings.value("audio/customBreakSoundPath", "").toString();
+}
+
+void SettingsManager::setCustomBreakSoundPath(const QString& path) {
+    m_settings.setValue("audio/customBreakSoundPath", path);
+    emit settingsChanged();
+}
+
+bool SettingsManager::screenFlashEnabled() const {
+    return m_settings.value("alerts/screenFlashEnabled", true).toBool();
+}
+
+void SettingsManager::setScreenFlashEnabled(bool enabled) {
+    m_settings.setValue("alerts/screenFlashEnabled", enabled);
+    emit settingsChanged();
+}
+
+QString SettingsManager::screenFlashStyle() const {
+    return m_settings.value("alerts/screenFlashStyle", "cyan").toString();
+}
+
+void SettingsManager::setScreenFlashStyle(const QString& style) {
+    m_settings.setValue("alerts/screenFlashStyle", style);
+    emit settingsChanged();
+}
+
+bool SettingsManager::globalHotkeysEnabled() const {
+    return m_settings.value("hotkeys/enabled", true).toBool();
+}
+
+void SettingsManager::setGlobalHotkeysEnabled(bool enabled) {
+    m_settings.setValue("hotkeys/enabled", enabled);
+    emit settingsChanged();
+}
+
+QString SettingsManager::hotkeyPauseResume() const {
+    return m_settings.value("hotkeys/pauseResume", "Ctrl+Alt+P").toString();
+}
+
+void SettingsManager::setHotkeyPauseResume(const QString& seq) {
+    m_settings.setValue("hotkeys/pauseResume", seq);
+    emit settingsChanged();
+}
+
+QString SettingsManager::hotkeySnooze() const {
+    return m_settings.value("hotkeys/snooze", "Ctrl+Alt+S").toString();
+}
+
+void SettingsManager::setHotkeySnooze(const QString& seq) {
+    m_settings.setValue("hotkeys/snooze", seq);
+    emit settingsChanged();
+}
+
+QString SettingsManager::hotkeySkip() const {
+    return m_settings.value("hotkeys/skip", "Ctrl+Alt+K").toString();
+}
+
+void SettingsManager::setHotkeySkip(const QString& seq) {
+    m_settings.setValue("hotkeys/skip", seq);
+    emit settingsChanged();
+}
+
+QString SettingsManager::hotkeyDnd() const {
+    return m_settings.value("hotkeys/dnd", "Ctrl+Alt+D").toString();
+}
+
+void SettingsManager::setHotkeyDnd(const QString& seq) {
+    m_settings.setValue("hotkeys/dnd", seq);
+    emit settingsChanged();
+}
+
 bool SettingsManager::nonStealingFocus() const {
     return m_settings.value("ui/nonStealingFocus", true).toBool();
 }
@@ -295,6 +439,19 @@ void SettingsManager::incrementBreaksCompleted(int breakDurationSecs) {
     int restSecs = eyeRestSecondsToday() + breakDurationSecs;
     m_settings.setValue("stats/completedToday", completed);
     m_settings.setValue("stats/eyeRestSecondsToday", restSecs);
+    recordTodayStats();
+    emit statsUpdated();
+}
+
+int SettingsManager::breaksPostponedToday() const {
+    return m_settings.value("stats/postponedToday", 0).toInt();
+}
+
+void SettingsManager::incrementBreaksPostponed() {
+    resetStatsIfNewDay();
+    int postponed = breaksPostponedToday() + 1;
+    m_settings.setValue("stats/postponedToday", postponed);
+    recordTodayStats();
     emit statsUpdated();
 }
 
@@ -302,17 +459,109 @@ void SettingsManager::incrementBreaksSkipped() {
     resetStatsIfNewDay();
     int skipped = breaksSkippedToday() + 1;
     m_settings.setValue("stats/skippedToday", skipped);
+    recordTodayStats();
     emit statsUpdated();
+}
+
+void SettingsManager::recordTodayStats() {
+    QString todayStr = QDate::currentDate().toString(Qt::ISODate);
+    m_settings.setValue(QString("history/%1/completed").arg(todayStr), breaksCompletedToday());
+    m_settings.setValue(QString("history/%1/snoozed").arg(todayStr), breaksPostponedToday());
+    m_settings.setValue(QString("history/%1/skipped").arg(todayStr), breaksSkippedToday());
+    m_settings.setValue(QString("history/%1/restSeconds").arg(todayStr), eyeRestSecondsToday());
+}
+
+QList<DayStats> SettingsManager::recentStats(int days) const {
+    QList<DayStats> list;
+    QDate today = QDate::currentDate();
+    for (int i = days - 1; i >= 0; --i) {
+        QDate d = today.addDays(-i);
+        QString dateStr = d.toString(Qt::ISODate);
+        DayStats ds;
+        ds.date = dateStr;
+        if (dateStr == today.toString(Qt::ISODate)) {
+            ds.completed = breaksCompletedToday();
+            ds.snoozed = breaksPostponedToday();
+            ds.skipped = breaksSkippedToday();
+            ds.restSeconds = eyeRestSecondsToday();
+        } else {
+            ds.completed = m_settings.value(QString("history/%1/completed").arg(dateStr), 0).toInt();
+            ds.snoozed = m_settings.value(QString("history/%1/snoozed").arg(dateStr), 0).toInt();
+            ds.skipped = m_settings.value(QString("history/%1/skipped").arg(dateStr), 0).toInt();
+            ds.restSeconds = m_settings.value(QString("history/%1/restSeconds").arg(dateStr), 0).toInt();
+        }
+        list.append(ds);
+    }
+    return list;
+}
+
+int SettingsManager::currentStreakDays() const {
+    int streak = 0;
+    QDate today = QDate::currentDate();
+    if (breaksCompletedToday() > 0) {
+        streak++;
+    }
+    QDate checkDate = today.addDays(-1);
+    while (true) {
+        QString dateStr = checkDate.toString(Qt::ISODate);
+        int completed = m_settings.value(QString("history/%1/completed").arg(dateStr), 0).toInt();
+        if (completed > 0) {
+            streak++;
+            checkDate = checkDate.addDays(-1);
+        } else {
+            break;
+        }
+    }
+    return streak;
+}
+
+double SettingsManager::weeklyComplianceRate() const {
+    auto stats = recentStats(7);
+    int totalCompleted = 0;
+    int totalSkipped = 0;
+    for (const auto& ds : stats) {
+        totalCompleted += ds.completed;
+        totalSkipped += ds.skipped;
+    }
+    if (totalCompleted + totalSkipped == 0) {
+        return 100.0;
+    }
+    return (static_cast<double>(totalCompleted) / (totalCompleted + totalSkipped)) * 100.0;
+}
+
+void SettingsManager::sync() {
+    m_settings.sync();
 }
 
 void SettingsManager::resetStatsIfNewDay() {
     QString todayStr = QDate::currentDate().toString(Qt::ISODate);
     QString lastReset = m_settings.value("stats/lastResetDate", "").toString();
     if (lastReset != todayStr) {
+        if (!lastReset.isEmpty()) {
+            m_settings.setValue(QString("history/%1/completed").arg(lastReset), breaksCompletedToday());
+            m_settings.setValue(QString("history/%1/snoozed").arg(lastReset), breaksPostponedToday());
+            m_settings.setValue(QString("history/%1/skipped").arg(lastReset), breaksSkippedToday());
+            m_settings.setValue(QString("history/%1/restSeconds").arg(lastReset), eyeRestSecondsToday());
+        }
+
+        // Prune history older than 30 days
+        QDate cutoff = QDate::currentDate().addDays(-30);
+        m_settings.beginGroup("history");
+        const QStringList childGroups = m_settings.childGroups();
+        for (const QString& dStr : childGroups) {
+            QDate d = QDate::fromString(dStr, Qt::ISODate);
+            if (d.isValid() && d < cutoff) {
+                m_settings.remove(dStr);
+            }
+        }
+        m_settings.endGroup();
+
         m_settings.setValue("stats/lastResetDate", todayStr);
         m_settings.setValue("stats/completedToday", 0);
         m_settings.setValue("stats/skippedToday", 0);
+        m_settings.setValue("stats/postponedToday", 0);
         m_settings.setValue("stats/eyeRestSecondsToday", 0);
+        recordTodayStats();
         emit statsUpdated();
     }
 }
@@ -320,6 +569,7 @@ void SettingsManager::resetStatsIfNewDay() {
 void SettingsManager::resetDailyStats() {
     m_settings.setValue("stats/completedToday", 0);
     m_settings.setValue("stats/skippedToday", 0);
+    m_settings.setValue("stats/postponedToday", 0);
     m_settings.setValue("stats/eyeRestSecondsToday", 0);
     emit statsUpdated();
 }
@@ -330,6 +580,10 @@ void SettingsManager::resetAllToDefaults() {
     setAudioEnabled(true);
     setVolume(80);
     setNotificationsEnabled(true);
+    setPreBreakWarningEnabled(true);
+    setPreBreakWarningSeconds(30);
+    setPostponeEnabled(true);
+    setDefaultPostponeSeconds(120);
     setBreakWindowEnabled(true);
     setBreakWindowStyle("popup");
     setPopupGeometry(QRect(-1, -1, 460, 320));
@@ -345,6 +599,18 @@ void SettingsManager::resetAllToDefaults() {
     setIdleDetectionEnabled(true);
     setIdleThresholdSeconds(180);
     setActivePresetName("20-20-20");
+    setDndActive(false);
+    setDndDurationSeconds(1800);
+    setSoundPack("default");
+    setCustomWorkSoundPath("");
+    setCustomBreakSoundPath("");
+    setScreenFlashEnabled(true);
+    setScreenFlashStyle("cyan");
+    setGlobalHotkeysEnabled(true);
+    setHotkeyPauseResume("Ctrl+Alt+P");
+    setHotkeySnooze("Ctrl+Alt+S");
+    setHotkeySkip("Ctrl+Alt+K");
+    setHotkeyDnd("Ctrl+Alt+D");
     resetDailyStats();
     emit settingsChanged();
 }

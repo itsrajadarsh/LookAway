@@ -12,6 +12,11 @@
    - [5.4 BreakOverlayWidget & Display Architecture](#54-breakoverlaywidget--display-architecture)
    - [5.5 SystemTrayManager & System Integration](#55-systemtraymanager--system-integration)
    - [5.6 MainWindow & Presentation Layer](#56-mainwindow--presentation-layer)
+   - [5.7 ErgonomicTipCatalog & Guided Exercises](#57-ergonomictipcatalog--guided-exercises)
+   - [5.8 WeeklyAnalyticsWidget & Habit Streaks](#58-weeklyanalyticswidget--habit-streaks)
+   - [5.9 GlobalHotkeyManager & System-Wide Shortcuts](#59-globalhotkeymanager--system-wide-shortcuts)
+   - [5.10 LinuxIdleDetector & Wayland D-Bus Architecture](#510-linuxidledetector--wayland-d-bus-architecture)
+   - [5.11 ScreenFlashWidget & Luminous Animation](#511-screenflashwidget--luminous-animation)
 6. [System Workflows & Sequence Diagrams](#6-system-workflows--sequence-diagrams)
    - [6.1 Bootstrapping & Composition Root](#61-bootstrapping--composition-root)
    - [6.2 Timer Engine Tick & State Transition Workflow](#62-timer-engine-tick--state-transition-workflow)
@@ -19,6 +24,9 @@
    - [6.4 Multi-Monitor Break Overlay Lifecycle](#64-multi-monitor-break-overlay-lifecycle)
    - [6.5 Settings Synchronization Workflow](#65-settings-synchronization-workflow)
    - [6.6 Application Exit & Close-To-Tray Workflow](#66-application-exit--close-to-tray-workflow)
+   - [6.7 Meeting & Presentation "Do Not Disturb" (DND) Mode](#67-meeting--presentation-do-not-disturb-dnd-mode)
+   - [6.8 Sound Theme Packs & Custom Chime Resolution](#68-sound-theme-packs--custom-chime-resolution)
+   - [6.9 Screen Flash & Break Completion Sequence](#69-screen-flash--break-completion-sequence)
 7. [Cross-Platform Implementation & OS Integrations](#7-cross-platform-implementation--os-integrations)
    - [7.1 Win32 Native Idle Detection](#71-win32-native-idle-detection)
    - [7.2 Windows Auto-Run Registry Integration](#72-windows-auto-run-registry-integration)
@@ -72,11 +80,13 @@ LookAway/
 ├── LICENSE                     # MIT Open Source License
 ├── DEVELOPER_GUIDE.md          # Comprehensive architecture & developer documentation
 ├── installer/
-│   ├── setup_script.iss        # Inno Setup 6 configuration script for Windows packaging
-│   └── build_appimage.sh       # Automated Linux AppImage build & packaging script
+│   ├── build_exe.iss           # Inno Setup 6 configuration script for Windows packaging (.exe)
+│   ├── build_appimage.sh       # Automated Linux AppImage build & packaging script
+│   └── README.md               # Quick packaging reference for Windows & Linux
 ├── installer_output/
-│   ├── windows/                # Generated Windows installer (.exe)
-│   └── linux/                  # AppDir, packaging tools, and generated .AppImage bundles
+│   ├── windows/                # Windows installer (.exe) and BUILD_EXE.md guide
+│   └── linux/                  # Linux AppImage (.AppImage) and BUILD_APPIMAGE.md guide
+├── screenshots/                # Application showcase screenshots for documentation
 ├── src/
 │   ├── main.cpp                # Application entry point, CLI arguments, and composition root
 │   ├── TimerEngine.h           # FSM definition and state management declarations
@@ -164,7 +174,7 @@ graph TD
 
 ### 5.1 TimerEngine & Finite State Machine
 
-[TimerEngine](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/TimerEngine.h) controls the countdown lifecycle and state progression.
+[TimerEngine](src/TimerEngine.h) controls the countdown lifecycle and state progression.
 
 #### Finite State Machine States
 ```cpp
@@ -208,7 +218,7 @@ stateDiagram-v2
 
 ### 5.2 SettingsManager & Data Persistence
 
-[SettingsManager](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/SettingsManager.h) wraps `QSettings` to provide persistent state across reboots and manages daily analytical metrics.
+[SettingsManager](src/SettingsManager.h) wraps `QSettings` to provide persistent state across reboots and manages daily analytical metrics.
 
 #### Internal Configuration Storage
 Persistent keys are written using native formats:
@@ -279,7 +289,7 @@ void SettingsManager::resetAllToDefaults() {
 
 ### 5.3 AudioManager & Audio Pipeline
 
-[AudioManager](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/AudioManager.h) provides low-latency notification chimes using `Qt6::Multimedia`'s `QSoundEffect`.
+[AudioManager](src/AudioManager.h) provides low-latency notification chimes using `Qt6::Multimedia`'s `QSoundEffect`.
 
 - **Instances:** `QSoundEffect m_workSound` (bound to `qrc:/sounds/chime_work.wav`), `QSoundEffect m_breakSound` (bound to `qrc:/sounds/chime_break.wav`).
 - **Volume Normalization:** Converts integer volume (0..100) to linear floating-point scalar (0.0f..1.0f):
@@ -290,7 +300,7 @@ void SettingsManager::resetAllToDefaults() {
 
 ### 5.4 BreakOverlayWidget & Display Architecture
 
-[BreakOverlayWidget](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/BreakOverlayWidget.h) provides visual shielding during rest breaks with two selectable presentation modes:
+[BreakOverlayWidget](src/BreakOverlayWidget.h) provides visual shielding during rest breaks with two selectable presentation modes:
 - **`DisplayMode::FullScreen`:** Spans semi-transparent backdrop overlays across all active monitors (`rgba(15, 23, 42, 235)`).
 - **`DisplayMode::CenteredPopup`:** Spawns a floating card ($460 \times 320$ px) centered on the primary monitor. Features draggable repositioning via `mousePressEvent` / `mouseMoveEvent`, leaving the rest of the desktop visible.
 
@@ -325,7 +335,7 @@ void BreakOverlayWidget::keyPressEvent(QKeyEvent* event) {
 
 ### 5.5 CustomPresetDialog & Profile Management
 
-[CustomPresetDialog](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/CustomPresetDialog.h) provides a focused dialog to create and edit named profiles:
+[CustomPresetDialog](src/CustomPresetDialog.h) provides a focused dialog to create and edit named profiles:
 - Automatically pre-populates with the exact work and break durations currently configured in the Settings inputs or running timer.
 - Converts between human-friendly units (`Seconds`, `Minutes`, `Hours`) and raw integer seconds.
 - Persists custom profiles into `QSettings` via `SettingsManager::saveCustomPreset()`.
@@ -335,7 +345,7 @@ void BreakOverlayWidget::keyPressEvent(QKeyEvent* event) {
 
 ### 5.6 SystemTrayManager & System Integration
 
-[SystemTrayManager](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/SystemTrayManager.h) provides persistent shell interaction via `QSystemTrayIcon` and a dynamic context menu (`QMenu`).
+[SystemTrayManager](src/SystemTrayManager.h) provides persistent shell interaction via `QSystemTrayIcon` and a dynamic context menu (`QMenu`).
 
 #### Context Menu Layout
 ```
@@ -362,7 +372,7 @@ Every second during a tick or upon an FSM transition:
 
 ### 5.6 MainWindow & Presentation Layer
 
-[MainWindow](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/MainWindow.h) is a fixed-size ($460 \times 580$ px) tabbed control panel.
+[MainWindow](src/MainWindow.h) is a fixed-size ($460 \times 580$ px) tabbed control panel.
 
 #### Tab 0: Dashboard
 - **Header:** Branded icon and title.
@@ -382,7 +392,160 @@ Every second during a tick or upon an FSM transition:
 #### Tab 1: Settings
 - **Durations:** Hybrid value/unit editable comboboxes supporting Seconds, Minutes, and Hours.
 - **Feedback & Strictness:** Audio chimes toggle, volume slider with live test button, desktop notifications toggle, full-screen strict mode toggle.
+- **Alerts & Warnings:** Pre-break warning advance alert with lead time selector, break snooze / postponement toggle with duration selector.
 - **System Behavior:** Close to tray toggle, Windows autorun toggle, idle detection toggle with threshold duration selector.
+
+---
+
+### 5.7 ErgonomicTipCatalog & Guided Exercises
+
+[ErgonomicTipCatalog](src/ErgonomicTipCatalog.h) maintains a curated catalog of 10 evidence-based clinical routines for digital workers:
+
+```cpp
+struct ErgonomicTip {
+    QString category;    // "EYE RELIEF", "DRY EYE RESET", "FOCUS MUSCLES", "POSTURE & SPINE"
+    QString title;       // Short routine name (e.g. "The 20-20-20 Rule")
+    QString instruction; // Actionable clinical instruction
+    QString benefit;     // Clinical ergonomic explanation
+    bool isMacro;        // True if suited for macro breaks (>= 1m), false for micro rests
+};
+```
+
+#### Selection & Rotation Logic:
+- `getRandomTip(bool preferMacro)`: Selects a random tip matching the active break category (Micro eye exercises vs. Macro physical/posture stretches).
+- `getNextTip(const QString& currentTitle, bool preferMacro)`: Iterates sequentially through the exercise pool when the user clicks **"Next Tip ↻"** or presses `R` / `Space`.
+
+---
+
+### 5.8 WeeklyAnalyticsWidget & Habit Streaks
+
+[WeeklyAnalyticsWidget](src/WeeklyAnalyticsWidget.h) provides a custom, hardware-accelerated 7-day adherence visualization embedded into the dedicated Analytics tab (`createAnalyticsTab()`) alongside daily session metrics, compliance rates, and clinical guidance.
+
+#### Data Model (`DayStats`)
+```cpp
+struct DayStats {
+    QString date;       // "YYYY-MM-DD" ISO 8601 string
+    int completed;      // Total breaks completed
+    int snoozed;        // Total breaks snoozed / postponed
+    int skipped;        // Total breaks skipped
+    int restSeconds;    // Total cumulative rest time in seconds
+};
+```
+
+#### Habit Streak Algorithm:
+1. `SettingsManager::currentStreakDays()` checks if `breaksCompletedToday() > 0`. If true, streak starts at 1.
+2. It walks back day-by-day (`today - 1`, `today - 2`, ...) inspecting `history/<YYYY-MM-DD>/completed` in `QSettings`.
+3. If `completed > 0`, streak increments; the first day with 0 completed breaks terminates the streak.
+4. If today has 0 breaks taken yet, the algorithm checks if yesterday had breaks taken to preserve an active streak during the current workday.
+
+#### Canvas Rendering (`paintEvent`):
+- **Glassmorphic Card:** Rounded rectangle (`#1e293b`) with slate border (`#334155`).
+- **Streak & Adherence Badges:** Top-right pill badges for `🔥 N-Day Streak` and `XX% Rate` weekly compliance.
+- **Stacked Proportional Bars:**
+  - Active Rest Breaks (`#38bdf8`, cyan)
+  - Snoozed Breaks (`#fbbf24`, amber)
+  - Skipped Breaks (`#f43f5e`, rose)
+- **Interactive Mouse Hover:** Tooltips with exact break counts and minutes of ocular rest when hovering any day bar.
+
+---
+
+### 5.9 GlobalHotkeyManager & System-Wide Shortcuts
+
+[GlobalHotkeyManager](src/GlobalHotkeyManager.h) provides system-wide global hotkey interception across all running applications without requiring LookAway to have window focus.
+
+#### Supported Default Bindings:
+- **`Ctrl+Alt+P`**: Pause / Resume Timer
+- **`Ctrl+Alt+S`**: Snooze / Postpone Break (1–5 minutes)
+- **`Ctrl+Alt+K`**: Skip Current Rest Break
+- **`Ctrl+Alt+D`**: Toggle 1-Hour Focus DND Mode
+
+#### Architecture & Native Event Filtering:
+1. **Windows Subsystem (`Q_OS_WIN`):**
+   - Subclasses `QAbstractNativeEventFilter` and installs onto `QCoreApplication::installNativeEventFilter()`.
+   - Intercepts Win32 `WM_HOTKEY` (`0x0312`) window messages in `nativeEventFilter()`.
+   - Uses `RegisterHotKey(nullptr, id, fsModifiers, vk)` and `UnregisterHotKey(nullptr, id)` to claim system-wide hotkeys.
+   - Converts standard Qt key sequences (`QKeySequence`) into Win32 virtual keycodes (`VK_*`) and modifier bitmasks (`MOD_CONTROL`, `MOD_ALT`, `MOD_SHIFT`, `MOD_WIN`).
+
+2. **Linux & Unix Subsystems (`Q_OS_LINUX`):**
+   - **In-App Application Shortcuts (`Qt::ApplicationShortcut`):** Installs `QShortcut` instances on the parent `MainWindow` with application-wide context. These immediately capture shortcuts whenever LookAway is in focus or during any active break overlay window.
+   - **Native X11 Global Hotkeys (`XGrabKey` + `QSocketNotifier`):** When running under X11 or XWayland, connects via `XOpenDisplay()` and registers keys using `XGrabKey()` on the `DefaultRootWindow` across NumLock/CapsLock modifier variations. Listens to socket events on `ConnectionNumber(m_x11Display)` via `QSocketNotifier`, dispatching events directly within Qt's event loop.
+   - **Wayland Desktop IPC Integration:** Because Wayland compositors intentionally block background apps from intercepting keystrokes of other applications for security, LookAway provides dedicated CLI actions:
+     - `lookaway --toggle` : Pause / resume timer
+     - `lookaway --snooze` : Snooze / postpone active or upcoming break
+     - `lookaway --skip`   : Skip active rest break
+     - `lookaway --dnd`    : Toggle Focus DND mode (1 hour)
+     Users can bind these fast commands to custom keyboard shortcuts directly in GNOME Settings, KDE Plasma Shortcuts, Sway, or Hyprland config.
+   - Reports live engine backend status via `backendStatus()` for UI diagnostics (e.g. `Linux Wayland: In-App & IPC Active` or `Linux X11 Global Hotkeys (Active)`).
+
+3. **Signal Routing:**
+   - Emits signals: `togglePauseResumeRequested`, `snoozeBreakRequested`, `skipBreakRequested`, `toggleDndRequested`.
+   - MainWindow connects these signals directly to `m_btnPlayPause->click()`, `m_timerEngine->postponeBreak()`, and `m_timerEngine->skipBreak()`.
+
+---
+
+### 5.10 LinuxIdleDetector & Wayland D-Bus Architecture
+
+[LinuxIdleDetector](src/LinuxIdleDetector.h) provides native hardware inactivity detection on Linux, with first-class support for modern Wayland compositors where traditional X11 APIs fail.
+
+#### Detection Cascade:
+```
+[TimerEngine::checkIdleDetection()]
+               │
+               ▼
+   [LinuxIdleDetector::getIdletimeMs()]
+               │
+   ┌───────────┴────────────────────────────────┐
+   │ 1. GNOME Wayland / Mutter                  │
+   │    D-Bus: org.gnome.Mutter.IdleMonitor      │
+   │    Path:  /org/gnome/Mutter/IdleMonitor/Core│
+   │    Method: GetIdletime -> uint64 (ms)      │
+   └───────────┬────────────────────────────────┘
+               │ (fallback if Mutter unavailable)
+   ┌───────────┴────────────────────────────────┐
+   │ 2. freedesktop ScreenSaver Session D-Bus    │
+   │    D-Bus: org.freedesktop.ScreenSaver      │
+   │    Method: GetSessionIdleTime -> uint32(ms)│
+   └───────────┬────────────────────────────────┘
+               │ (fallback if ScreenSaver unavailable)
+   ┌───────────┴────────────────────────────────┐
+   │ 3. KDE Plasma KIdleTime D-Bus Engine       │
+   │    D-Bus: org.kde.KIdleTime                │
+   │    Method: getIdletime -> int (ms)         │
+   └───────────┬────────────────────────────────┘
+               │ (fallback if Wayland D-Bus absent)
+   ┌───────────┴────────────────────────────────┐
+   │ 4. X11 Native XScreenSaver / MIT-SCREEN     │
+   └────────────────────────────────────────────┘
+```
+
+#### Wayland D-Bus Implementation:
+- Uses `QDBusConnection::sessionBus()` to query `org.gnome.Mutter.IdleMonitor` on `/org/gnome/Mutter/IdleMonitor/Core`.
+- Calls `GetIdletime` returning `uint64` milliseconds of inactivity.
+- Operates under standard user session permissions without root privilege or sandboxing escapes.
+- Exposed via `LinuxIdleDetector::activeBackendName()` which feeds the live status badge on the Preferences tab.
+
+---
+
+### 5.11 ScreenFlashWidget & Luminous Animation
+
+[ScreenFlashWidget](src/ScreenFlashWidget.h) is a full-display luminous flash overlay that pulses gently across screens when an eye care rest period completes, notifying the user to return to work.
+
+#### Core Design & Zero-Focus Guarantee:
+- **Non-Activating Window Flags:** Uses `Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowTransparentForInput | Qt::WindowDoesNotAcceptFocus`.
+- **Transparency Attributes:** `Qt::WA_TranslucentBackground`, `Qt::WA_TransparentForMouseEvents`, and `Qt::WA_ShowWithoutActivating`.
+- **Zero Input Interruption:** Mouse clicks, key presses, and window focus pass completely through the overlay to underlying work applications without interrupting typing or multitasking.
+
+#### Flash Style Presets:
+| Style Key | Visual Effect | Peak Alpha | Duration | Easing Curve |
+| :--- | :--- | :--- | :--- | :--- |
+| `cyan` | Subtle Cyan Pulse (`#38bdf8`) | 0.35 | 400 ms | `QEasingCurve::InOutQuad` |
+| `amber` | Warm Eye-Friendly Amber (`#fbbf24`) | 0.35 | 500 ms | `QEasingCurve::InOutQuad` |
+| `white` | High-Contrast Clean White (`#ffffff`)| 0.40 | 350 ms | `QEasingCurve::InOutQuad` |
+| `double`| Double Ripple Pulse (`#38bdf8`) | 0.35 | 700 ms | Custom Keyframes (2 waves) |
+
+#### Multi-Screen Coordination:
+- `ScreenFlashWidget::flashAllScreens(style)` iterates through all displays in `QGuiApplication::screens()`, creating a frameless overlay sized to `screen->geometry()`.
+- Automatically connects `QPropertyAnimation::finished` to `deleteLater()`, ensuring clean resource deallocation.
 
 ---
 
@@ -608,6 +771,110 @@ sequenceDiagram
 
 ---
 
+### 6.7 Meeting & Presentation "Do Not Disturb" (DND) Mode
+
+LookAway provides a 1-click silence mode to guarantee presentations, customer demos, and calls are never interrupted by break overlays or audio alerts.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant MW as MainWindow
+    participant TM as SystemTrayManager
+    participant TE as TimerEngine
+    participant AM as AudioManager
+
+    User->>MW: Click "DND Mode ▾" -> Select "1 Hour"
+    MW->>TE: enableDnd(3600)
+    TE->>TE: m_isDndActive = true, m_dndSecondsRemaining = 3600
+    TE->>TE: m_stateBeforeDnd = m_state
+    TE->>TE: setState(Paused)
+    TE-->>MW: emit dndStateChanged(true, 3600)
+    TE-->>TM: emit dndStateChanged(true, 3600)
+    MW->>MW: Show violet badge: "DO NOT DISTURB (01:00:00) 🔕"
+    MW->>MW: Show "Turn Off DND" button
+    TM->>TM: Show tray notification: "Do Not Disturb Enabled (1 Hour)"
+    
+    loop Every second
+        TE->>TE: m_dndSecondsRemaining--
+        TE-->>MW: tick() -> update DND countdown
+    end
+
+    alt Time expires (m_dndSecondsRemaining == 0)
+        TE->>TE: disableDnd()
+        TE-->>MW: emit dndExpired()
+        TE-->>TM: emit dndExpired()
+        MW->>MW: Restore "READY TO WORK" badge
+        TE->>TE: setState(m_stateBeforeDnd) [Auto-resume schedule]
+    else User manually clicks "Turn Off DND"
+        User->>MW: Click "Turn Off DND"
+        MW->>TE: disableDnd()
+        TE->>TE: m_isDndActive = false
+        TE->>TE: setState(Working)
+    end
+```
+
+---
+
+### 6.8 Sound Theme Packs & Custom Chime Resolution
+
+The audio pipeline maps logical event cues (`work` vs `break`) to high-fidelity audio assets based on user preference:
+
+```mermaid
+graph TD
+    Trigger["Break Complete / Work Complete"] --> CheckAudio{"Audio Enabled & Not DND?"}
+    CheckAudio -- "No" --> Silence["Mute / No-Op"]
+    CheckAudio -- "Yes" --> Resolve["AudioManager::resolveSoundUrl"]
+    Resolve --> PackCheck{"Active Sound Pack"}
+    PackCheck -- "default" --> DefChime["qrc:/sounds/chime_work.wav / chime_break.wav"]
+    PackCheck -- "zen" --> ZenChime["qrc:/sounds/zen_work.wav / zen_break.wav (432Hz)"]
+    PackCheck -- "marimba" --> MarimbaChime["qrc:/sounds/marimba_work.wav / marimba_break.wav"]
+    PackCheck -- "bell" --> BellChime["qrc:/sounds/bell_work.wav / bell_break.wav"]
+    PackCheck -- "custom" --> CustomPath{"Custom File Exists?"}
+    CustomPath -- "Yes" --> LocalFile["QUrl::fromLocalFile(customPath)"]
+    CustomPath -- "No" --> Fallback["qrc:/sounds/chime_work.wav (Fail-safe)"]
+    DefChime --> Play["QSoundEffect::play"]
+    ZenChime --> Play
+    MarimbaChime --> Play
+    BellChime --> Play
+    LocalFile --> Play
+    Fallback --> Play
+```
+
+---
+
+### 6.9 Screen Flash & Break Completion Sequence
+
+When an active eye break countdown reaches zero, LookAway notifies the user through a luminous screen pulse across all connected displays without stealing window focus:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant TE as TimerEngine
+    participant MW as MainWindow
+    participant SF as ScreenFlashWidget
+    participant QPA as QPropertyAnimation
+    participant Screen as Display Surface
+
+    TE->>TE: m_secondsRemaining == 0 (Break Completed)
+    TE->>TE: setState(State::Working)
+    TE-->>MW: emit breakCompleted()
+    MW->>MW: Check settings->screenFlashEnabled()
+    opt Screen Flash Enabled
+        MW->>SF: ScreenFlashWidget::flashAllScreens(style)
+        loop Each active screen in QGuiApplication::screens()
+            SF->>SF: Instantiate ScreenFlashWidget(screenGeometry)
+            SF->>Screen: show() [TransparentForInput | ShowWithoutActivating]
+            SF->>QPA: anim->start()
+            QPA->>SF: Interpolate flashOpacity (0.0 -> peak -> 0.0)
+            QPA-->>SF: Animation finished
+            SF->>SF: hide() & deleteLater()
+        end
+    end
+```
+
+---
+
 ## 7. Cross-Platform Implementation & OS Integrations
 
 ### 7.1 Win32 Native Idle Detection
@@ -666,9 +933,14 @@ When enabled, Windows launches LookAway at startup with the `--minimized` flag, 
 
 ### 7.3 Linux & Wayland / X11 Considerations
 
-- **X11:** `Qt::WindowStaysOnTopHint` and full-screen geometries operate reliably across multi-monitor setups.
-- **Wayland:** Under Wayland, application windows are isolated by the compositor (e.g., Mutter, KWin). Some compositors restrict window positioning or `StaysOnTop` manipulation by client applications for security reasons. LookAway relies on standard Qt 6 Wayland shell integration protocols (`xdg-shell` / `wlr-layer-shell`).
-- **Linux Idle Detection:** Win32 APIs are disabled on Linux via conditional compilation (`#ifdef Q_OS_WIN`). In Linux builds, `checkIdleDetection()` is currently a no-op. (See [Section 11](#11-extending-lookaway-developer-cookbook) for adding DBus or XScreenSaver idle detection).
+- **X11 Display Server:** `Qt::WindowStaysOnTopHint` and full-screen geometries operate reliably across multi-monitor setups.
+- **Wayland Compositors:** Under Wayland, application windows are strictly isolated by the compositor (e.g., GNOME Mutter, KDE KWin, Sway). Some compositors restrict window positioning or `StaysOnTop` manipulation by client applications for security reasons. LookAway relies on standard Qt 6 Wayland shell integration protocols (`xdg-shell` / `wlr-layer-shell`).
+- **Native Wayland Idle Detection:** Traditional X11 APIs (`XScreenSaverQueryInfo`) fail silently on Wayland. LookAway overcomes this limitation using [LinuxIdleDetector](src/LinuxIdleDetector.h) via standard session D-Bus:
+  1. **GNOME Mutter (`org.gnome.Mutter.IdleMonitor`):** Calls `/org/gnome/Mutter/IdleMonitor/Core::GetIdletime` returning exact milliseconds since last hardware event.
+  2. **FreeDesktop ScreenSaver (`org.freedesktop.ScreenSaver`):** Fallback session D-Bus query.
+  3. **KDE Plasma (`org.kde.KIdleTime`):** Fallback D-Bus monitor for KWin environments.
+  4. **X11 Fallback (`XScreenSaver`):** Standard fallback on pure X11 desktop sessions.
+- **Focus Preservation Guarantee:** Break overlay windows and the luminous Screen Flash overlay set `Qt::WA_ShowWithoutActivating` and `Qt::WindowDoesNotAcceptFocus`, preventing focus stealing when alerts appear while the user is actively typing.
 
 ---
 
@@ -682,14 +954,29 @@ All settings are encapsulated within `SettingsManager`. Below is the complete sc
 | `timer` | `breakDuration`| `int` | `20` | $1 \le x \le 3600$ | Length of break session in seconds |
 | `audio` | `enabled` | `bool` | `true` | `true / false` | Master audio chime toggle |
 | `audio` | `volume` | `int` | `80` | $0 \le x \le 100$ | Output audio volume percentage |
+| `audio` | `soundPack` | `QString` | `"default"` | `"default"`, `"zen"`, `"marimba"`, `"bell"`, `"custom"` | Active sound theme pack |
+| `audio` | `customWorkSoundPath` | `QString` | `""` | Valid file path | User custom sound file for work complete |
+| `audio` | `customBreakSoundPath` | `QString` | `""` | Valid file path | User custom sound file for break complete |
+| `alerts` | `screenFlashEnabled` | `bool` | `true` | `true / false` | Luminous full-screen glow on break complete |
+| `alerts` | `screenFlashStyle` | `QString` | `"cyan"` | `"cyan"`, `"amber"`, `"white"`, `"double"` | Flash animation color and pulse theme |
+| `hotkeys` | `enabled` | `bool` | `true` | `true / false` | Global system-wide keyboard shortcuts toggle |
+| `hotkeys` | `pauseResume` | `QString` | `"Ctrl+Alt+P"` | Key combination | Global hotkey to pause / resume timer |
+| `hotkeys` | `snooze` | `QString` | `"Ctrl+Alt+S"` | Key combination | Global hotkey to snooze break |
+| `hotkeys` | `skip` | `QString` | `"Ctrl+Alt+K"` | Key combination | Global hotkey to skip active break |
+| `hotkeys` | `dnd` | `QString` | `"Ctrl+Alt+D"` | Key combination | Global hotkey to toggle 1h DND mode |
+| `notification` | `preBreakWarningEnabled` | `bool` | `true` | `true / false` | Fires advance warning notification ahead of break |
+| `notification` | `preBreakWarningSeconds` | `int` | `30` | `15`, `30`, `45`, `60` | Lead time in seconds for pre-break warning |
+| `ui` | `postponeEnabled` | `bool` | `true` | `true / false` | Allows snooze / postponement of breaks |
+| `ui` | `defaultPostponeSeconds` | `int` | `120` | `60`, `120`, `180`, `300` | Duration to postpone breaks when snoozed |
 | `notifications` | `enabled` | `bool` | `true` | `true / false` | Desktop tray toast notifications |
 | `ui` | `closeToTray` | `bool` | `true` | `true / false` | Intercept window close to minimize to tray |
-| `ui` | `strictMode` | `bool` | `true` | `true / false` | Spawns full-screen shield overlay during breaks |
+| `ui` | `strictMode` | `bool` | `false` | `true / false` | Hides skip/snooze and suppresses Escape key |
 | `system` | `autostart` | `bool` | `false` | `true / false` | Enables OS startup launch hook |
 | `system` | `idleDetection`| `bool` | `true` | `true / false` | Automatically pauses timer when idle |
 | `system` | `idleThreshold`| `int` | `180` | $30 \le x \le 3600$ | Seconds of zero input required to trigger idle |
 | `stats` | `lastResetDate`| `QString`| `""` | ISO Date String | Last reset date (`YYYY-MM-DD`) for analytics |
 | `stats` | `completedToday`| `int` | `0` | $\ge 0$ | Number of completed breaks today |
+| `stats` | `postponedToday`| `int` | `0` | $\ge 0$ | Number of snoozed / postponed breaks today |
 | `stats` | `skippedToday` | `int` | `0` | $\ge 0$ | Number of skipped breaks today |
 | `stats` | `eyeRestSecondsToday`| `int` | `0` | $\ge 0$ | Total eye rest seconds logged today |
 
@@ -703,7 +990,7 @@ The project uses modern modular CMake with target-based properties:
 
 ```cmake
 cmake_minimum_required(VERSION 3.16)
-project(LookAway VERSION 1.1.0 LANGUAGES CXX)
+project(LookAway VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -712,7 +999,11 @@ set(CMAKE_AUTOMOC ON) # Auto-generates Qt Meta-Object code
 set(CMAKE_AUTORCC ON) # Compiles resources.qrc into binary
 set(CMAKE_AUTOUIC ON) # Compiles UI forms if added
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Network)
+
+if(UNIX AND NOT APPLE)
+    find_package(Qt6 REQUIRED COMPONENTS DBus)
+endif()
 
 set(SOURCES
     src/main.cpp
@@ -728,11 +1019,33 @@ set(SOURCES
     src/BreakOverlayWidget.cpp
     src/MainWindow.h
     src/MainWindow.cpp
+    src/CustomPresetDialog.h
+    src/CustomPresetDialog.cpp
+    src/FullscreenDetector.h
+    src/FullscreenDetector.cpp
+    src/WeeklyAnalyticsWidget.h
+    src/WeeklyAnalyticsWidget.cpp
+    src/ErgonomicTipCatalog.h
+    src/ErgonomicTipCatalog.cpp
+    src/ScreenFlashWidget.h
+    src/ScreenFlashWidget.cpp
+    src/LinuxIdleDetector.h
+    src/LinuxIdleDetector.cpp
+    src/GlobalHotkeyManager.h
+    src/GlobalHotkeyManager.cpp
     resources/resources.qrc
 )
 
 add_executable(LookAway ${SOURCES})
-target_link_libraries(LookAway PRIVATE Qt6::Widgets Qt6::Multimedia)
+target_link_libraries(LookAway PRIVATE
+    Qt6::Widgets
+    Qt6::Multimedia
+    Qt6::Network
+)
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(LookAway PRIVATE Qt6::DBus)
+endif()
 
 if(WIN32)
     set_target_properties(LookAway PROPERTIES WIN32_EXECUTABLE TRUE)
@@ -796,17 +1109,17 @@ cmake --build build
 
 ### 9.4 Creating Windows Installer (Inno Setup)
 
-LookAway includes a production-ready Inno Setup configuration at [installer/setup_script.iss](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/installer/setup_script.iss).
+LookAway includes a production-ready Inno Setup configuration at [installer/build_exe.iss](installer/build_exe.iss).
 
-1. Execute `windeployqt build/LookAway.exe`.
+1. Execute `windeployqt build-windows/Release/LookAway.exe`.
 2. Compile the installer:
    ```cmd
-   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\setup_script.iss
+   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\build_exe.iss
    ```
 3. The resulting standalone setup binary is emitted to:
-   `installer_output/windows/LookAway-Setup-v1.1.0.exe`
+   `installer_output/windows/LookAway-Setup-v2.0.0.exe`
 
-Features configured by `setup_script.iss`:
+Features configured by `build_exe.iss`:
 - Modern wizard styling, lowest privilege execution (no administrator elevation required).
 - Optional desktop icon creation.
 - Optional system startup autostart registry insertion.
@@ -816,7 +1129,7 @@ Features configured by `setup_script.iss`:
 
 ### 9.5 Creating Linux AppImage
 
-LookAway provides both an **automated single-command packaging script** ([installer/build_appimage.sh](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/installer/build_appimage.sh)) and a documented manual pipeline.
+LookAway provides both an **automated single-command packaging script** ([installer/build_appimage.sh](installer/build_appimage.sh)) and a documented manual pipeline.
 
 #### 9.5.1 Automated Packaging (`installer/build_appimage.sh`)
 
@@ -833,24 +1146,23 @@ Run directly from the repository root:
 | :--- | :--- | :--- |
 | *(no arguments)* | Full release build with auto-detected version and Qt toolchain | `./installer/build_appimage.sh` |
 | `--no-build` | Skip CMake compilation and bundle existing compiled binary immediately | `./installer/build_appimage.sh --no-build` |
-| `-v`, `--version <ver>` | Override the version string in the generated AppImage filename | `./installer/build_appimage.sh -v 1.1.0` |
-| `-q`, `--qmake <path>` | Explicitly specify the Qt 6 `qmake` binary path | `./installer/build_appimage.sh -q /home/adarsh/Qt/6.8.2/gcc_64/bin/qmake` |
+| `-v`, `--version <ver>` | Override the version string in the generated AppImage filename | `./installer/build_appimage.sh -v 2.0.0` |
+| `-q`, `--qmake <path>` | Explicitly specify the Qt 6 `qmake` binary path | `./installer/build_appimage.sh -q ~/Qt/6.8.2/gcc_64/bin/qmake` |
 | `-h`, `--help` | Display script usage and available options | `./installer/build_appimage.sh --help` |
 
 ##### Automation Pipeline Features
-1. **Dynamic Version Detection:** Automatically extracts the project version from `CMakeLists.txt` (e.g., `VERSION 1.1.0`) if no manual override is provided.
+1. **Dynamic Version Detection:** Automatically extracts the project version from `CMakeLists.txt` (e.g., `VERSION 2.0.0`) if no manual override is provided.
 2. **Qt 6 Toolchain Discovery:** Automatically inspects standard Qt installation paths (`/home/$USER/Qt/6.*/gcc_64/bin/qmake`, `/opt/Qt/`, system `qmake6`) and verifies Qt 6 compatibility.
 3. **Multi-Threaded Compilation:** Builds via `cmake -B build-linux -DCMAKE_BUILD_TYPE=Release` using all available CPU cores (`-j$(nproc)`).
-4. **Offline Runtime Caching (`LDAI_RUNTIME_FILE`):** Downloads and caches `runtime-x86_64` locally in `installer_output/linux/`, preventing slow or rate-limited network downloads during SquashFS bundling.
+4. **Offline Runtime Caching (`LDAI_RUNTIME_FILE`):** Downloads and caches `runtime-x86_64` in `build-linux/tools/`, preventing slow or rate-limited network downloads during SquashFS bundling.
 5. **FUSE Requirement Bypass:** Automatically sets `APPIMAGE_EXTRACT_AND_RUN=1` to guarantee reliable operation on modern Linux distributions (Ubuntu 22.04+, 24.04+, Debian 12+, Arch) where `libfuse2` is not installed by default.
-6. **Dual Artifact Output:** Generates both a version-tagged release artifact and a generic convenience symlink:
-   - `installer_output/linux/LookAway-1.1.0-x86_64.AppImage` (51 MB)
-   - `installer_output/linux/LookAway-x86_64.AppImage` (51 MB)
+6. **Clean Artifact Output:** Generates a single version-tagged release artifact directly into `installer_output/linux/`:
+   - `installer_output/linux/LookAway-2.0.0-x86_64.AppImage`
 
 ##### Testing the AppImage
 ```bash
 # Test execution (works with or without FUSE installed):
-APPIMAGE_EXTRACT_AND_RUN=1 ./installer_output/linux/LookAway-1.1.0-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./installer_output/linux/LookAway-2.0.0-x86_64.AppImage
 ```
 
 ---
@@ -861,7 +1173,7 @@ For developers packaging in customized CI/CD pipelines:
 
 1. **Build Release Binary:**
    ```bash
-   cmake -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="/home/adarsh/Qt/6.8.2/gcc_64"
+   cmake -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$HOME/Qt/6.8.2/gcc_64"
    cmake --build build-linux --config Release
    ```
 
@@ -875,8 +1187,8 @@ For developers packaging in customized CI/CD pipelines:
 
 3. **Set Environment Variables:**
    ```bash
-   export QMAKE=/home/adarsh/Qt/6.8.2/gcc_64/bin/qmake
-   export VERSION=1.1.0
+   export QMAKE=$HOME/Qt/6.8.2/gcc_64/bin/qmake
+   export VERSION=2.0.0
    export APPIMAGE_EXTRACT_AND_RUN=1
    export LDAI_RUNTIME_FILE="$(pwd)/runtime-x86_64"
    ```
@@ -934,7 +1246,7 @@ The UI uses a custom **Tailwind-inspired Slate & Sky Dark Palette** configured i
 
 ### How to Add a New Timer Preset
 To add a new preset (e.g., 45-minute work session with 15-minute break):
-1. Open [src/MainWindow.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/MainWindow.cpp#L152-L174).
+1. Open [src/MainWindow.cpp](src/MainWindow.cpp#L152-L174).
 2. Instantiate a new button in `createDashboardTab()`:
    ```cpp
    QPushButton* btnPreset45 = new QPushButton("45-15 Rest");
@@ -954,7 +1266,7 @@ To extend idle detection beyond Windows, implement the X11 `XScreenSaver` extens
        target_link_libraries(LookAway PRIVATE ${X11_LIBRARIES} Xss)
    endif()
    ```
-2. In [src/TimerEngine.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/TimerEngine.cpp#L4-L16), add:
+2. In [src/TimerEngine.cpp](src/TimerEngine.cpp#L4-L16), add:
    ```cpp
    #if defined(Q_OS_LINUX)
    #include <X11/Xlib.h>
@@ -976,8 +1288,8 @@ To extend idle detection beyond Windows, implement the X11 `XScreenSaver` extens
 
 ### How to Add New Notification Chimes
 1. Place audio `.wav` files into `resources/sounds/`.
-2. Register the files in [resources/resources.qrc](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/resources/resources.qrc).
-3. Bind the resource URL in [src/AudioManager.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/AudioManager.cpp#L10-L11).
+2. Register the files in [resources/resources.qrc](resources/resources.qrc).
+3. Bind the resource URL in [src/AudioManager.cpp](src/AudioManager.cpp#L10-L11).
 
 ---
 
@@ -985,12 +1297,12 @@ To extend idle detection beyond Windows, implement the X11 `XScreenSaver` extens
 
 ### 12.1 Single-Instance Enforcement (IPC via QLocalServer)
 LookAway guarantees a single running instance per desktop session.
-- **Entry Point:** [src/main.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/main.cpp)
+- **Entry Point:** [src/main.cpp](src/main.cpp)
 - **Mechanism:** On launch, LookAway connects to `LookAway_SingleInstance_IPC_Server` via `QLocalSocket`. If another instance is running, it transmits `"SHOW_WINDOW\n"` to raise the existing window and exits `0`.
 - **Primary Listener:** If connection fails, the process removes stale sockets, begins listening via `QLocalServer`, and raises `MainWindow` whenever secondary launches are attempted.
 
 ### 12.2 Ambient Border Glow Shield (DisplayMode::BorderGlow)
-- **Class:** [src/BreakOverlayWidget.h](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/BreakOverlayWidget.h)
+- **Class:** [src/BreakOverlayWidget.h](src/BreakOverlayWidget.h)
 - **Attributes:**
   - `setAttribute(Qt::WA_TranslucentBackground, true);`
   - `setAttribute(Qt::WA_TransparentForMouseEvents, true);`
@@ -1004,7 +1316,7 @@ LookAway guarantees a single running instance per desktop session.
 - **Interactive Sizing:** Embedded `QSizeGrip` in the bottom-right corner allows fluid resizing with bounded constraints ($340 \times 240$ min, $1200 \times 800$ max).
 
 ### 12.4 Compound Dual-Preset Scheduling
-- **Engine:** [src/TimerEngine.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/TimerEngine.cpp)
+- **Engine:** [src/TimerEngine.cpp](src/TimerEngine.cpp)
 - **Coordination Logic:**
   - **Micro Break (e.g. 20-20-20):** During 20s eye rest, the Macro timer is paused and resumes immediately after.
   - **Macro Break (e.g. 50-10):** During 10m long rest, the Micro timer is paused, and upon completion of the 10m break, the Micro timer is **reset back to 20m** (preventing an immediate break right after a long rest).
@@ -1016,7 +1328,7 @@ LookAway guarantees a single running instance per desktop session.
 - **Enforcement:** Hides the "Skip Break" button in both overlay and dashboard, suppresses the `Esc` key in `BreakOverlayWidget`, and causes `TimerEngine::skipBreak()` to return early.
 
 ### 12.6 Fullscreen Application Detection
-- **Class:** [src/FullscreenDetector.cpp](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/src/FullscreenDetector.cpp)
+- **Class:** [src/FullscreenDetector.cpp](src/FullscreenDetector.cpp)
 - **Windows:** Queries foreground window rect and compares against the monitor rect, excluding shell windows.
 - **Linux:** Queries active window state via `xprop` for `_NET_WM_STATE_FULLSCREEN` and checks D-Bus `org.freedesktop.ScreenSaver` active inhibitors.
 - **Behavior:** Postpones imminent breaks by 2 minutes when fullscreen video players (VLC, Chrome, Firefox) or games are active.

@@ -72,6 +72,40 @@ void CustomPresetDialog::setupUi() {
         lv->setPalette(pal);
 
         combo->setView(lv);
+
+        if (QFrame* frame = qobject_cast<QFrame*>(combo->view()->parentWidget())) {
+            frame->setObjectName("comboContainer");
+            frame->setFrameShape(QFrame::NoFrame);
+            frame->setLineWidth(0);
+            frame->setContentsMargins(0, 0, 0, 0);
+            frame->setAttribute(Qt::WA_TranslucentBackground, true);
+            frame->setStyleSheet("QFrame#comboContainer { background-color: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; }");
+        }
+
+        lv->setStyleSheet(R"(
+            QListView {
+                background-color: transparent;
+                color: #f8fafc;
+                border: none;
+                padding: 4px;
+                outline: none;
+            }
+            QListView::item {
+                background-color: transparent;
+                color: #f8fafc;
+                padding: 6px 12px;
+                border-radius: 4px;
+            }
+            QListView::item:selected:!hover {
+                background-color: #1e293b;
+                color: #38bdf8;
+            }
+            QListView::item:hover,
+            QListView::item:selected:hover {
+                background-color: #0284c7;
+                color: #ffffff;
+            }
+        )");
     };
 
     // Work Interval controls: SpinBox + Unit ComboBox
@@ -234,21 +268,29 @@ void CustomPresetDialog::applyTheme() {
             font-size: 13px;
             font-weight: 500;
         }
+        QComboBox:hover {
+            border-color: #475569;
+        }
         QComboBox:focus {
             border: 1px solid #38bdf8;
         }
-        QComboBox QAbstractItemView,
-        QComboBox QListView {
+        QFrame#comboContainer,
+        QComboBoxPrivateContainer {
             background-color: #0f172a;
-            color: #f8fafc;
             border: 1px solid #38bdf8;
             border-radius: 6px;
+        }
+        QComboBox QAbstractItemView,
+        QComboBox QListView {
+            background-color: transparent;
+            color: #f8fafc;
+            border: none;
             padding: 4px;
             outline: none;
         }
         QComboBox QAbstractItemView::item,
         QComboBox QListView::item {
-            background-color: #0f172a;
+            background-color: transparent;
             color: #f8fafc;
             padding: 6px 12px;
             border-radius: 4px;

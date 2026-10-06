@@ -13,6 +13,14 @@ struct CustomPreset {
     int breakDurationSeconds;
 };
 
+struct DayStats {
+    QString date;
+    int completed = 0;
+    int snoozed = 0;
+    int skipped = 0;
+    int restSeconds = 0;
+};
+
 class SettingsManager : public QObject {
     Q_OBJECT
 
@@ -58,6 +66,52 @@ public:
     bool suppressOnFullscreen() const;
     void setSuppressOnFullscreen(bool suppress);
 
+    // Pre-Break Warning
+    bool preBreakWarningEnabled() const;
+    void setPreBreakWarningEnabled(bool enabled);
+    int preBreakWarningSeconds() const;
+    void setPreBreakWarningSeconds(int seconds);
+
+    // Postpone / Snooze Break
+    bool postponeEnabled() const;
+    void setPostponeEnabled(bool enabled);
+    int defaultPostponeSeconds() const;
+    void setDefaultPostponeSeconds(int seconds);
+    int breaksPostponedToday() const;
+    void incrementBreaksPostponed();
+
+    // Meeting / Presentation Do Not Disturb (DND)
+    bool dndActive() const;
+    void setDndActive(bool active);
+    int dndDurationSeconds() const;
+    void setDndDurationSeconds(int seconds);
+
+    // Audio Sound Pack & Custom Chimes
+    QString soundPack() const;
+    void setSoundPack(const QString& pack);
+    QString customWorkSoundPath() const;
+    void setCustomWorkSoundPath(const QString& path);
+    QString customBreakSoundPath() const;
+    void setCustomBreakSoundPath(const QString& path);
+
+    // End-of-Break Screen Flash
+    bool screenFlashEnabled() const;
+    void setScreenFlashEnabled(bool enabled);
+    QString screenFlashStyle() const;
+    void setScreenFlashStyle(const QString& style);
+
+    // Global Hotkeys
+    bool globalHotkeysEnabled() const;
+    void setGlobalHotkeysEnabled(bool enabled);
+    QString hotkeyPauseResume() const;
+    void setHotkeyPauseResume(const QString& seq);
+    QString hotkeySnooze() const;
+    void setHotkeySnooze(const QString& seq);
+    QString hotkeySkip() const;
+    void setHotkeySkip(const QString& seq);
+    QString hotkeyDnd() const;
+    void setHotkeyDnd(const QString& seq);
+
     bool nonStealingFocus() const;
     void setNonStealingFocus(bool nonStealing);
 
@@ -89,12 +143,17 @@ public:
     QString activePresetName() const;
     void setActivePresetName(const QString& name);
 
-    // Statistics & Reset
+    // Statistics, Analytics & Habit Streaks
     int breaksCompletedToday() const;
     int breaksSkippedToday() const;
     int eyeRestSecondsToday() const;
     void incrementBreaksCompleted(int breakDurationSecs);
     void incrementBreaksSkipped();
+    void recordTodayStats();
+    QList<DayStats> recentStats(int days = 7) const;
+    int currentStreakDays() const;
+    double weeklyComplianceRate() const;
+    void sync();
     void resetStatsIfNewDay();
     void resetDailyStats();
     void resetAllToDefaults();

@@ -1,6 +1,6 @@
 ; Inno Setup Script for LookAway 20-20-20 Eye Care Utility
 #define MyAppName "LookAway"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "itsrajadarsh"
 #define MyAppURL "https://github.com/itsrajadarsh/LookAway"
 #define MyAppExeName "LookAway.exe"
@@ -20,7 +20,7 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=LookAway-Setup-v1.1.0
+OutputBaseFilename=LookAway-Setup-v2.0.0
 OutputDir=..\installer_output\windows
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -33,7 +33,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "autostart"; Description: "Automatically launch LookAway when Windows starts"; GroupDescription: "Startup Options:"
 
 [Files]
-Source: "..\build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "CMakeFiles,CMakeFiles\*,*.cxx.obj,*.cpp.obj,*.cpp,*.h,*.d,*.txt,*.cmake,*.lock,*.ninja,*.json,LookAway_autogen,LookAway_autogen\*"
+Source: "..\build-windows\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "CMakeFiles,CMakeFiles\*,*.cxx.obj,*.cpp.obj,*.cpp,*.h,*.d,*.txt,*.cmake,*.lock,*.ninja,*.json,LookAway_autogen,LookAway_autogen\*"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
