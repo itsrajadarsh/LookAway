@@ -56,5 +56,7 @@ compile_commands.json
 *_qmlcache.qrc
 
 
-installer/
 installer_output/
+installer/*
+!installer/setup_script.iss
+!installer/build_appimage.sh

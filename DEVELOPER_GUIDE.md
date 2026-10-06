@@ -58,7 +58,7 @@
 | **Build Automation** | CMake 3.16+ (`Ninja` or `GNU Make`) | Cross-platform build script generation, `AUTOMOC`, `AUTORCC` |
 | **Resource Bundling** | Qt Resource System (`rcc`) | Compiled binary embedding of SVG vector icons and WAV audio |
 | **Windows Packaging** | Inno Setup 6.x | Windows installer creation (`.exe`), Start Menu & Registry hooks |
-| **Linux Packaging** | AppImage (`appimagetool` / `linuxdeployqt`) | Self-contained, portable single-file binary distribution |
+| **Linux Packaging** | AppImage (`linuxdeploy` + `linuxdeploy-plugin-qt`) | Self-contained, portable single-file binary distribution |
 | **Target Platforms** | Windows 10/11 (x86_64), Linux (X11 & Wayland) | Primary desktop OS environments |
 
 ---
@@ -72,7 +72,11 @@ LookAway/
 ├── LICENSE                     # MIT Open Source License
 ├── DEVELOPER_GUIDE.md          # Comprehensive architecture & developer documentation
 ├── installer/
-│   └── setup_script.iss        # Inno Setup 6 configuration script for Windows packaging
+│   ├── setup_script.iss        # Inno Setup 6 configuration script for Windows packaging
+│   └── build_appimage.sh       # Automated Linux AppImage build & packaging script
+├── installer_output/
+│   ├── windows/                # Generated Windows installer (.exe)
+│   └── linux/                  # AppDir, packaging tools, and generated .AppImage bundles
 ├── src/
 │   ├── main.cpp                # Application entry point, CLI arguments, and composition root
 │   ├── TimerEngine.h           # FSM definition and state management declarations
@@ -699,7 +703,7 @@ The project uses modern modular CMake with target-based properties:
 
 ```cmake
 cmake_minimum_required(VERSION 3.16)
-project(LookAway VERSION 1.0.0 LANGUAGES CXX)
+project(LookAway VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -800,7 +804,7 @@ LookAway includes a production-ready Inno Setup configuration at [installer/setu
    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\setup_script.iss
    ```
 3. The resulting standalone setup binary is emitted to:
-   `installer_output/windows/LookAway-Setup-v1.0.0.exe`
+   `installer_output/windows/LookAway-Setup-v1.1.0.exe`
 
 Features configured by `setup_script.iss`:
 - Modern wizard styling, lowest privilege execution (no administrator elevation required).
@@ -812,34 +816,91 @@ Features configured by `setup_script.iss`:
 
 ### 9.5 Creating Linux AppImage
 
-To package LookAway as a standalone `.AppImage` for distribution on any modern Linux distribution:
+LookAway provides both an **automated single-command packaging script** ([installer/build_appimage.sh](file:///home/adarsh/Desktop/ad_desk/Projects/LookAway/installer/build_appimage.sh)) and a documented manual pipeline.
 
+#### 9.5.1 Automated Packaging (`installer/build_appimage.sh`)
+
+The script automates the complete packaging pipeline: version discovery, Qt 6 toolchain resolution, Release compilation, AppDir layout assembly, offline runtime caching, and SquashFS compression.
+
+Run directly from the repository root:
 ```bash
-# 1. Create AppDir layout
-mkdir -p AppDir/usr/bin
-mkdir -p AppDir/usr/share/icons/hicolor/scalable/apps
-mkdir -p AppDir/usr/share/applications
-
-# 2. Copy binary and desktop assets
-cp build/LookAway AppDir/usr/bin/
-cp resources/icons/app_icon.svg AppDir/usr/share/icons/hicolor/scalable/apps/lookaway.svg
-cp resources/icons/app_icon.svg AppDir/lookaway.svg
-
-# 3. Create Desktop Entry
-cat <<EOF > AppDir/lookaway.desktop
-[Desktop Entry]
-Name=LookAway
-Exec=LookAway
-Icon=lookaway
-Type=Application
-Categories=Utility;Clock;
-Comment=20-20-20 Eye Care Background Utility
-Terminal=false
-EOF
-
-# 4. Run linuxdeployqt or appimagetool
-linuxdeployqt AppDir/usr/bin/LookAway -appimage -qmake=/usr/lib/qt6/bin/qmake
+./installer/build_appimage.sh
 ```
+
+##### Command-Line Options
+
+| Option / Flag | Description | Example |
+| :--- | :--- | :--- |
+| *(no arguments)* | Full release build with auto-detected version and Qt toolchain | `./installer/build_appimage.sh` |
+| `--no-build` | Skip CMake compilation and bundle existing compiled binary immediately | `./installer/build_appimage.sh --no-build` |
+| `-v`, `--version <ver>` | Override the version string in the generated AppImage filename | `./installer/build_appimage.sh -v 1.1.0` |
+| `-q`, `--qmake <path>` | Explicitly specify the Qt 6 `qmake` binary path | `./installer/build_appimage.sh -q /home/adarsh/Qt/6.8.2/gcc_64/bin/qmake` |
+| `-h`, `--help` | Display script usage and available options | `./installer/build_appimage.sh --help` |
+
+##### Automation Pipeline Features
+1. **Dynamic Version Detection:** Automatically extracts the project version from `CMakeLists.txt` (e.g., `VERSION 1.1.0`) if no manual override is provided.
+2. **Qt 6 Toolchain Discovery:** Automatically inspects standard Qt installation paths (`/home/$USER/Qt/6.*/gcc_64/bin/qmake`, `/opt/Qt/`, system `qmake6`) and verifies Qt 6 compatibility.
+3. **Multi-Threaded Compilation:** Builds via `cmake -B build-linux -DCMAKE_BUILD_TYPE=Release` using all available CPU cores (`-j$(nproc)`).
+4. **Offline Runtime Caching (`LDAI_RUNTIME_FILE`):** Downloads and caches `runtime-x86_64` locally in `installer_output/linux/`, preventing slow or rate-limited network downloads during SquashFS bundling.
+5. **FUSE Requirement Bypass:** Automatically sets `APPIMAGE_EXTRACT_AND_RUN=1` to guarantee reliable operation on modern Linux distributions (Ubuntu 22.04+, 24.04+, Debian 12+, Arch) where `libfuse2` is not installed by default.
+6. **Dual Artifact Output:** Generates both a version-tagged release artifact and a generic convenience symlink:
+   - `installer_output/linux/LookAway-1.1.0-x86_64.AppImage` (51 MB)
+   - `installer_output/linux/LookAway-x86_64.AppImage` (51 MB)
+
+##### Testing the AppImage
+```bash
+# Test execution (works with or without FUSE installed):
+APPIMAGE_EXTRACT_AND_RUN=1 ./installer_output/linux/LookAway-1.1.0-x86_64.AppImage
+```
+
+---
+
+#### 9.5.2 Manual Step-by-Step AppImage Packaging
+
+For developers packaging in customized CI/CD pipelines:
+
+1. **Build Release Binary:**
+   ```bash
+   cmake -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="/home/adarsh/Qt/6.8.2/gcc_64"
+   cmake --build build-linux --config Release
+   ```
+
+2. **Assemble AppDir Layout:**
+   ```bash
+   cd installer_output/linux
+   mkdir -p AppDir/usr/bin
+   cp ../../build-linux/LookAway AppDir/usr/bin/
+   chmod +x AppDir/usr/bin/LookAway
+   ```
+
+3. **Set Environment Variables:**
+   ```bash
+   export QMAKE=/home/adarsh/Qt/6.8.2/gcc_64/bin/qmake
+   export VERSION=1.1.0
+   export APPIMAGE_EXTRACT_AND_RUN=1
+   export LDAI_RUNTIME_FILE="$(pwd)/runtime-x86_64"
+   ```
+
+4. **Execute `linuxdeploy`:**
+   ```bash
+   ./linuxdeploy-x86_64.AppImage \
+       --appdir AppDir \
+       --desktop-file LookAway.desktop \
+       --icon-file LookAway.png \
+       --plugin qt \
+       --output appimage
+   ```
+
+---
+
+#### 9.5.3 Linux Packaging Troubleshooting
+
+| Symptom / Error | Root Cause | Solution |
+| :--- | :--- | :--- |
+| `Cannot mount AppImage, please check your FUSE setup` | Missing `libfuse2` on modern distributions | Run with `APPIMAGE_EXTRACT_AND_RUN=1` or `sudo apt install libfuse2` |
+| `Could not find Qt modules to deploy` | Executable missing from standard location | Ensure binary is located at `AppDir/usr/bin/LookAway` |
+| `ERROR: Host system is too new` | Using deprecated `linuxdeployqt` on Qt 6 | Use `linuxdeploy` + `linuxdeploy-plugin-qt` (included in `installer_output/linux`) |
+| Slow packaging during `Generating squashfs...` | `appimagetool` downloading runtime over network | Set `export LDAI_RUNTIME_FILE="$(pwd)/runtime-x86_64"` |
 
 ---
 
