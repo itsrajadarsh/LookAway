@@ -67,15 +67,19 @@ Pre-compiled binaries for Windows and Linux are available on the [GitHub Release
 | <img src="screenshots/03_alerts.png" width="340" alt="Alerts & Visuals" /> | <img src="screenshots/04_audio.png" width="340" alt="Audio & Sounds" /> |
 | *Break window styles, end-of-break screen flash, advance warning, and snooze timing* | *432Hz Zen Singing Bowl, master volume, and custom audio preview triggers* |
 
-| ⚙️ Preferences & Shortcuts | 🧘 Guided Break Window |
+| 🔕 Meeting & Presentation "Do Not Disturb" Mode | 🧘 Guided Break Window |
 |:---:|:---:|
-| <img src="screenshots/05_preferences.png" width="340" alt="Preferences & System Integration" /> | <img src="screenshots/06_break_overlay.png" width="340" alt="Guided Rest Reminder Card" /> |
-| *Global hotkeys, native Wayland idle engine, and custom interval profiles* | *Rotating clinical eye relief exercises, countdown, and snooze controls* |
+| <img src="screenshots/07_dnd_mode.png" width="340" alt="Do Not Disturb Focus Mode" /> | <img src="screenshots/06_break_overlay.png" width="340" alt="Guided Rest Reminder Card" /> |
+| *1-click break & audio suppression with live countdown banner for meetings and presentations* | *Rotating clinical eye relief exercises, countdown, and snooze controls* |
 
-| 🔕 Meeting & Presentation "Do Not Disturb" Mode |
+<div align="center">
+
+| ⚙️ Preferences & Shortcuts |
 |:---:|
-| <img src="screenshots/07_dnd_mode.png" width="340" alt="Do Not Disturb Focus Mode" /> |
-| *1-click break & audio suppression with live countdown banner for meetings and presentations* |
+| <img src="screenshots/05_preferences.png" width="360" alt="Preferences & System Integration" /> |
+| *Global hotkeys, native Wayland idle engine, and custom interval profiles* |
+
+</div>
 
 ---
 
