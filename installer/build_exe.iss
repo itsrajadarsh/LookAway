@@ -5,6 +5,14 @@
 #define MyAppURL "https://github.com/itsrajadarsh/LookAway"
 #define MyAppExeName "LookAway.exe"
 
+#ifndef SourceDir
+  #define SourceDir "..\build-windows\Release"
+#endif
+
+#ifndef OutputDir
+  #define OutputDir "..\installer_output\windows"
+#endif
+
 [Setup]
 AppId={{D3F9E10A-8A45-4E7B-9A8C-2B02C6A48191}
 AppName={#MyAppName}
@@ -21,7 +29,7 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DefaultGroupName={#MyAppName}
 OutputBaseFilename=LookAway-Setup-v2.0.0
-OutputDir=..\installer_output\windows
+OutputDir={#OutputDir}
 Compression=lzma2/ultra64
 SolidCompression=yes
 
@@ -33,7 +41,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "autostart"; Description: "Automatically launch LookAway when Windows starts"; GroupDescription: "Startup Options:"
 
 [Files]
-Source: "..\build-windows\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "CMakeFiles,CMakeFiles\*,*.cxx.obj,*.cpp.obj,*.cpp,*.h,*.d,*.txt,*.cmake,*.lock,*.ninja,*.json,LookAway_autogen,LookAway_autogen\*"
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "CMakeFiles,CMakeFiles\*,*.cxx.obj,*.cpp.obj,*.cpp,*.h,*.d,*.txt,*.cmake,*.lock,*.ninja,*.json,LookAway_autogen,LookAway_autogen\*"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

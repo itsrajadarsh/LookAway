@@ -62,8 +62,10 @@ installer_output/*/*
 !installer_output/**/*.md
 installer/*
 !installer/build_exe.iss
+!installer/build_exe.ps1
+!installer/build_exe.bat
 !installer/build_appimage.sh
-!installer/README.md
+!installer/*.md
 
 # Temporary scratch test files
 scratch/

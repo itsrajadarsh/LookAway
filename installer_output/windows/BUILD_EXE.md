@@ -1,81 +1,139 @@
 # Building LookAway Windows Installer (EXE)
 
-Step-by-step guide to compiling **LookAway** in Release mode, generating the setup installer wizard (`LookAway-Setup-v2.0.0.exe`), and publishing GitHub releases.
+Comprehensive guide to building **LookAway** in Release mode, generating the setup installer wizard (`LookAway-Setup-v2.0.0.exe`), and publishing GitHub releases. This guide covers both **native Windows development** and **cross-building inside a Windows Virtual Machine (VMware / VirtualBox)** with shared folders.
 
 ---
 
 ## 📋 Table of Contents
 
-- [⚙️ Environment Setup](#️-environment-setup)
-- [🔨 Step 1: Build the Release Executable](#-step-1-build-the-release-executable)
-- [📦 Step 2: Deploy Qt Runtime Dependencies](#-step-2-deploy-qt-runtime-dependencies)
-- [💿 Step 3: Create the Windows Installer](#-step-3-create-the-windows-installer)
+- [Prerequisites & Required Components](#-prerequisites--required-components)
+- [⚡ 1-Step Automated Build (Recommended)](#-1-step-automated-build-recommended)
+- [🖥️ Building via Windows VM & Shared Folders](#️-building-via-windows-vm--shared-folders)
+- [🔨 Manual Step-by-Step Pipeline](#-manual-step-by-step-pipeline)
 - [🚀 Publishing a GitHub Release](#-publishing-a-github-release)
-- [⚡ Quick All-In-One Script](#-quick-all-in-one-script)
+- [💡 Troubleshooting & Tips](#-troubleshooting--tips)
 
 ---
 
-## ⚙️ Environment Setup
+## 📋 Prerequisites & Required Components
 
-Before running commands in PowerShell or Terminal, update your `PATH` variable so CMake, GCC/MinGW, Qt, and Inno Setup are recognized:
+Install the required development toolchain using the **Qt Online Installer** (Custom Installation):
 
-```powershell
-$env:PATH = "C:\Qt\Tools\mingw1310_64\bin;C:\Qt\Tools\Ninja;C:\Qt\Tools\CMake_64\bin;C:\Qt\6.8.3\mingw_64\bin;C:\Users\Adarsh\AppData\Local\Programs\Inno Setup 6;" + $env:PATH
-```
+### 1. Under `Qt 6.8.3` (or your target Qt 6.x):
+* ☑️ **MinGW 13.1.0 64-bit** *(Core Qt runtime, base libraries & Widgets)*
+* ☑️ **Qt Multimedia** *(under **Additional Libraries** — mandatory for `Qt6::Multimedia` / `QSoundEffect` audio chime playback)*
 
-> [!NOTE]
-> Ensure paths match your local installation directories for Qt 6.8.3 and Inno Setup 6.
+### 2. Under `Developer and Designer Tools` (Build Tools):
+* ☑️ **MinGW 13.1.0 64-bit** *(GCC C++ compiler toolchain & binutils)*
+* ☑️ **CMake 3.30+** *(Build system generator)*
+* ☑️ **Ninja 1.12+** *(High-performance parallel build driver)*
 
----
+### 3. Packaging Software:
+* ☑️ **Inno Setup 6.x** *(download and install from [jrsoftware.org](https://jrsoftware.org/isdl.php))*
+  *(Default path: `C:\Program Files (x86)\Inno Setup 6` or `C:\Users\<Username>\AppData\Local\Programs\Inno Setup 6`)*
 
-## 🔨 Step 1: Build the Release Executable
-
-Compile an optimized **Release** build with debug symbols stripped and compiler optimizations enabled:
-
-```powershell
-# 1. Create and configure build directory for Release
-cmake -B build-windows/Release -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:/Qt/6.8.2/mingw_64"
-
-# 2. Compile the executable
-cmake --build build-windows/Release --config Release
-```
-
-**Artifact Output:** `build-windows/Release/LookAway.exe`
+> 🖼️ **Visual Reference:** See [qt_installation_requirements.png](../../screenshots/qt_installation_requirements.png) for the exact Qt installer component checklist.
 
 ---
 
-## 📦 Step 2: Deploy Qt Runtime Dependencies
+## ⚡ 1-Step Automated Build (Recommended)
 
-Qt applications require runtime `.dll` files and plugins (e.g., `Qt6Core`, `Qt6Widgets`, `Multimedia` plugins) to run outside of Qt Creator.
+From PowerShell or Command Prompt at the repository root, run the automated batch launcher:
 
-Run `windeployqt` to copy all required DLLs into the `build-windows/Release/` directory automatically:
-
-```powershell
-windeployqt build-windows/Release/LookAway.exe
+```cmd
+.\installer\build_exe.bat
 ```
 
 > [!TIP]
-> After running `windeployqt`, `build-windows/Release/LookAway.exe` becomes a standalone executable and can be tested directly without needing Qt installed.
+> **Why `build_exe.bat`?**
+> Windows restricts running unsigned PowerShell `.ps1` scripts by default (`Restricted` / `RemoteSigned`). Running `build_exe.bat` automatically launches the packaging script with `ExecutionPolicy Bypass`, auto-discovers all build tools, and compiles without needing manual permission changes.
+
+### Automated Options:
+```cmd
+# Standard full build and packaging:
+.\installer\build_exe.bat
+
+# Fast re-packaging without recompiling (uses existing binary):
+.\installer\build_exe.bat -NoBuild
+
+# Clean re-compile from scratch:
+.\installer\build_exe.bat -Clean
+
+# Custom build output directory:
+.\installer\build_exe.bat -BuildDir "C:\LookAwayBuild"
+```
+
+**Artifact Output:** `installer_output\windows\LookAway-Setup-v2.0.0.exe`
 
 ---
 
-## 💿 Step 3: Create the Windows Installer
+## 🖥️ Building via Windows VM & Shared Folders
 
-Bundle the compiled binary and dependent assets into a single setup wizard (`LookAway-Setup-v2.0.0.exe`) using **Inno Setup** (`ISCC.exe`).
+If you develop on Linux and use a Windows Virtual Machine (VMware / VirtualBox) with Shared Folders to produce the Windows installer:
 
-Run the compiler against the `.iss` script:
-
-```powershell
-ISCC.exe installer/build_exe.iss
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Linux Host Machine                                          │
+│   └── Repo Root: /home/user/.../Projects/LookAway           │
+│         └── installer_output/windows/ (Auto-receives .exe)  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Shared Folder
+┌──────────────────────────▼──────────────────────────────────┐
+│ Windows Virtual Machine (Guest)                             │
+│   ├── Access Repo: \\vmware-host\Shared Folders\...\LookAway│
+│   ├── Compile Locally: C:\LookAwayBuildVM (Fast local SSD)  │
+│   └── Run Inno Setup: Emits LookAway-Setup-v2.0.0.exe       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Installer Output:** `installer_output/windows/LookAway-Setup-v2.0.0.exe`
+1. **Open PowerShell in the shared folder** (e.g. `\\vmware-host\Shared Folders\Projects\LookAway`).
+2. **Run the batch script:**
+   ```cmd
+   .\installer\build_exe.bat
+   ```
+3. **What happens automatically:**
+   - Detects the network UNC share path.
+   - Sets the compilation target to fast local SSD storage (`C:\LookAwayBuildVM`) to prevent network file-locking and SMB latency.
+   - Compiles with Ninja and runs `windeployqt`.
+   - Packages with Inno Setup and outputs `LookAway-Setup-v2.0.0.exe` **directly back into your Linux host's `installer_output/windows/` directory**.
+
+---
+
+## 🔨 Manual Step-by-Step Pipeline
+
+If building step-by-step manually without the automated script:
+
+### Step 1: Set Environment PATH
+```powershell
+$env:PATH = "C:\Qt\Tools\mingw1310_64\bin;C:\Qt\Tools\Ninja;C:\Qt\Tools\CMake_64\bin;C:\Qt\6.8.3\mingw_64\bin;C:\Program Files (x86)\Inno Setup 6;" + $env:PATH
+```
+
+### Step 2: Configure & Compile (Release)
+```powershell
+# 1. Configure
+cmake -S . -B build-windows/Release -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:/Qt/6.8.3/mingw_64"
+
+# 2. Compile
+cmake --build build-windows/Release --config Release
+```
+
+### Step 3: Deploy Qt Runtime Dependencies
+```powershell
+windeployqt build-windows/Release/LookAway.exe --compiler-runtime --no-translations
+```
+
+### Step 4: Compile Inno Setup Installer
+```powershell
+ISCC.exe /DSourceDir="build-windows/Release" installer/build_exe.iss
+```
+
+*(If compiling in a VM to `C:\LookAwayBuildVM`, replace `build-windows/Release` with `C:\LookAwayBuildVM`).*
 
 ---
 
 ## 🚀 Publishing a GitHub Release
 
-When ready to publish a release for users on GitHub:
+When publishing a new release:
 
 ### 1. Tag and Push to Git
 ```bash
@@ -89,35 +147,17 @@ git push origin main --tags
 1. Navigate to your repository on GitHub.
 2. Click **Releases** → **Draft a new release**.
 3. Select tag `v2.0.0`.
-4. Set Title to `LookAway v2.0.0`.
+4. Title: `LookAway v2.0.0`.
 5. Drag and drop **`installer_output/windows/LookAway-Setup-v2.0.0.exe`** under *Attach binaries by dropping them here*.
 6. Click **Publish release**.
 
 ---
 
-## ⚡ Quick All-In-One Script
+## 💡 Troubleshooting & Tips
 
-Save the following code as `build_release.ps1` in your repository root to automate the build and installer generation process:
-
-```powershell
-# Set environment paths
-$env:PATH = "C:\Qt\Tools\mingw1310_64\bin;C:\Qt\Tools\Ninja;C:\Qt\Tools\CMake_64\bin;C:\Qt\6.8.3\mingw_64\bin;C:\Users\Adarsh\AppData\Local\Programs\Inno Setup 6;" + $env:PATH
-
-# Stop running instances
-Stop-Process -Name "LookAway" -Force -ErrorAction SilentlyContinue
-
-# Configure & Build
-Write-Host "Building Release..." -ForegroundColor Cyan
-cmake -B build-windows/Release -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:/Qt/6.8.2/mingw_64"
-cmake --build build-windows/Release --config Release
-
-# Deploy DLLs
-Write-Host "Deploying Qt DLLs..." -ForegroundColor Cyan
-windeployqt build-windows/Release/LookAway.exe
-
-# Generate Installer
-Write-Host "Compiling Installer..." -ForegroundColor Cyan
-ISCC.exe installer/build_exe.iss
-
-Write-Host "Done! Installer created at installer_output/windows/LookAway-Setup-v2.0.0.exe" -ForegroundColor Green
-```
+| Problem | Cause | Solution |
+| :--- | :--- | :--- |
+| `File ... cannot be loaded because running scripts is disabled` | Windows ExecutionPolicy | Use `.\installer\build_exe.bat` instead of `.ps1`, or run `powershell -ExecutionPolicy Bypass -File .\installer\build_exe.ps1` |
+| `CMD does not support UNC paths` | Network share folder | Map a drive letter: `net use Z: "\\vmware-host\Shared Folders\Projects\LookAway"` and `cd Z:\` |
+| `ISCC: command not found` | Inno Setup not in PATH | Install Inno Setup 6. `build_exe.bat` auto-discovers both `C:\Program Files (x86)\Inno Setup 6` and `%LOCALAPPDATA%` |
+| Audio doesn't play after install | Missing Qt Multimedia | Ensure `Qt Multimedia` was selected in the Qt Online Installer under Additional Libraries |

@@ -96,6 +96,8 @@ LookAway/
 ├── CMakeLists.txt              # CMake build configuration
 ├── installer/
 │   ├── build_exe.iss           # Inno Setup script for Windows installer (.exe)
+│   ├── build_exe.ps1           # Automated Windows build & Inno Setup PowerShell script
+│   ├── build_exe.bat           # 1-click batch launcher (bypasses execution policy)
 │   ├── build_appimage.sh       # Automated Linux AppImage packaging script
 │   └── README.md               # Quick packaging reference for Windows & Linux
 ├── installer_output/
@@ -126,10 +128,12 @@ LookAway/
 
 ### Prerequisites
 
-* **C++17 Compiler** (GCC, Clang, or MSVC)
-* **CMake 3.16+**
-* **Qt 6.x** (`Widgets`, `Multimedia`, `Network`)
-* **Ninja** or **Make**
+* **C++17 Compiler** (MinGW 13.1.0 64-bit on Windows, GCC 11+ on Linux, or Clang/MSVC)
+* **CMake 3.20+** and **Ninja**
+* **Qt 6.x** (`Widgets`, `Network`, and `Qt Multimedia` under Additional Libraries)
+* **Inno Setup 6.x** (for Windows installer creation)
+
+*(For Windows, see visual component checklist in [screenshots/qt_installation_requirements.png](screenshots/qt_installation_requirements.png))*
 
 ### Linux
 
@@ -157,15 +161,21 @@ LookAway/
 
 ### Windows (MinGW / MSVC)
 
+#### Automated 1-Step Build & Package:
+```cmd
+.\installer\build_exe.bat
+```
+
+#### Manual Build:
 1. Configure and compile:
    ```powershell
-   cmake -B build-windows/Release -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:/Qt/6.8.2/mingw_64"
+   cmake -B build-windows/Release -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:/Qt/6.8.3/mingw_64"
    cmake --build build-windows/Release
    ```
 
 2. Deploy Qt dependencies:
    ```powershell
-   windeployqt build-windows/Release/LookAway.exe
+   windeployqt build-windows/Release/LookAway.exe --compiler-runtime
    ```
 
 3. Create the installer (Inno Setup 6):

@@ -81,6 +81,8 @@ LookAway/
 ├── DEVELOPER_GUIDE.md          # Comprehensive architecture & developer documentation
 ├── installer/
 │   ├── build_exe.iss           # Inno Setup 6 configuration script for Windows packaging (.exe)
+│   ├── build_exe.ps1           # Automated Windows build & Inno Setup PowerShell script
+│   ├── build_exe.bat           # 1-click batch launcher (bypasses execution policy)
 │   ├── build_appimage.sh       # Automated Linux AppImage build & packaging script
 │   └── README.md               # Quick packaging reference for Windows & Linux
 ├── installer_output/
@@ -1056,8 +1058,19 @@ endif()
 
 ### 9.2 Building on Windows (MinGW / MSVC)
 
-#### 1. Setup Build Environment
-Ensure Qt 6 (Widgets & Multimedia modules) and CMake are installed.
+#### 1. Setup Build Environment & Prerequisites
+Install the development toolchain via the **Qt Online Installer** (Custom Installation):
+* **Qt 6.8.3** (or latest Qt 6.x):
+  * ☑️ **MinGW 13.1.0 64-bit** (Base libraries & Widgets)
+  * ☑️ **Qt Multimedia** *(under **Additional Libraries** — mandatory for `Qt6::Multimedia` / `QSoundEffect` chime playback)*
+* **Developer and Designer Tools:**
+  * ☑️ **MinGW 13.1.0 64-bit** (GCC C++ compiler toolchain)
+  * ☑️ **CMake 3.30+** (Build generator)
+  * ☑️ **Ninja 1.12+** (Fast parallel compiler driver)
+* **Packaging Tool:**
+  * ☑️ **Inno Setup 6** (from [jrsoftware.org](https://jrsoftware.org/isdl.php))
+
+> 🖼️ **Visual Reference:** See [screenshots/qt_installation_requirements.png](screenshots/qt_installation_requirements.png) for the exact component tree.
 
 ```powershell
 # In PowerShell:
@@ -1109,15 +1122,25 @@ cmake --build build
 
 ### 9.4 Creating Windows Installer (Inno Setup)
 
-LookAway includes a production-ready Inno Setup configuration at [installer/build_exe.iss](installer/build_exe.iss).
+LookAway provides both an **automated single-command batch build script** ([installer/build_exe.bat](installer/build_exe.bat)) and a manual Inno Setup configuration ([installer/build_exe.iss](installer/build_exe.iss)).
 
-1. Execute `windeployqt build-windows/Release/LookAway.exe`.
+#### Automated Build (Recommended)
+From PowerShell or CMD on Windows (or inside a Windows VM):
+```cmd
+.\installer\build_exe.bat
+```
+*(Automatically discovers Qt 6, MinGW, CMake, Ninja, and Inno Setup, bypasses PowerShell execution policy, and emits the installer).*
+
+#### Manual Packaging
+1. Execute `windeployqt build-windows/Release/LookAway.exe --compiler-runtime --no-translations`.
 2. Compile the installer:
    ```cmd
    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\build_exe.iss
    ```
 3. The resulting standalone setup binary is emitted to:
    `installer_output/windows/LookAway-Setup-v2.0.0.exe`
+
+*(For full Windows VM shared folder guides and troubleshooting, see [installer_output/windows/BUILD_EXE.md](installer_output/windows/BUILD_EXE.md)).*
 
 Features configured by `build_exe.iss`:
 - Modern wizard styling, lowest privilege execution (no administrator elevation required).
