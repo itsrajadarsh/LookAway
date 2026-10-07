@@ -176,7 +176,7 @@ void MainWindow::setupUi() {
     appHeaderLayout->addWidget(titleLabel);
     appHeaderLayout->addStretch();
 
-    m_btnDnd = new QPushButton("🔕 DND Mode ▾");
+    m_btnDnd = new QPushButton("🔕 DND Mode");
     m_btnDnd->setObjectName("btnSmall");
     m_btnDnd->setFixedHeight(28);
     m_btnDnd->setToolTip("Suppress all break overlays and audio during meetings or focus sessions.");
@@ -598,20 +598,21 @@ void setupDarkCombo(QComboBox* combo, std::function<void()> onSave) {
         frame->setFrameShape(QFrame::NoFrame);
         frame->setLineWidth(0);
         frame->setContentsMargins(0, 0, 0, 0);
-        frame->setAttribute(Qt::WA_TranslucentBackground, true);
-        frame->setStyleSheet("QFrame#comboContainer { background-color: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; }");
+        frame->setAttribute(Qt::WA_TranslucentBackground, false);
+        frame->setStyleSheet("background-color: #0f172a; border: none;");
     }
 
     listView->setStyleSheet(R"(
         QListView {
-            background-color: transparent;
+            background-color: #0f172a;
             color: #f8fafc;
-            border: none;
+            border: 1px solid #38bdf8;
+            border-radius: 6px;
             padding: 4px;
             outline: none;
         }
         QListView::item {
-            background-color: transparent;
+            background-color: #0f172a;
             color: #f8fafc;
             padding: 6px 12px;
             border-radius: 4px;
@@ -1934,14 +1935,37 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::applyTheme() {
-    QPalette appPal = qApp->palette();
+    QPalette appPal;
+    appPal.setColor(QPalette::Window, QColor("#0f172a"));
+    appPal.setColor(QPalette::WindowText, QColor("#f8fafc"));
+    appPal.setColor(QPalette::Base, QColor("#0f172a"));
+    appPal.setColor(QPalette::AlternateBase, QColor("#1e293b"));
     appPal.setColor(QPalette::ToolTipBase, QColor("#0f172a"));
     appPal.setColor(QPalette::ToolTipText, QColor("#f8fafc"));
+    appPal.setColor(QPalette::Text, QColor("#f8fafc"));
+    appPal.setColor(QPalette::Button, QColor("#1e293b"));
+    appPal.setColor(QPalette::ButtonText, QColor("#f8fafc"));
+    appPal.setColor(QPalette::BrightText, QColor("#ef4444"));
+    appPal.setColor(QPalette::Link, QColor("#38bdf8"));
+    appPal.setColor(QPalette::Highlight, QColor("#0284c7"));
+    appPal.setColor(QPalette::HighlightedText, QColor("#ffffff"));
+    appPal.setColor(QPalette::Disabled, QPalette::Text, QColor("#64748b"));
+    appPal.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#64748b"));
+    appPal.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#64748b"));
     qApp->setPalette(appPal);
 
     QString qss = R"(
-        QMainWindow {
+        QMainWindow, QDialog, QMessageBox {
             background-color: #0f172a;
+        }
+        QMessageBox {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        QMessageBox QLabel {
+            color: #f8fafc;
+            background-color: transparent;
+            font-size: 13px;
         }
         QWidget {
             color: #f8fafc;
@@ -2004,6 +2028,69 @@ void MainWindow::applyTheme() {
         QProgressBar#sessionProgress::chunk {
             background-color: #38bdf8;
             border-radius: 3px;
+        }
+        QPushButton {
+            background-color: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        QPushButton:hover {
+            background-color: #334155;
+            border-color: #475569;
+            color: #38bdf8;
+        }
+        QPushButton:pressed {
+            background-color: #0f172a;
+        }
+        QPushButton:focus {
+            border: 1px solid #38bdf8;
+            outline: none;
+        }
+        QDialog QPushButton,
+        QMessageBox QPushButton,
+        QDialogButtonBox QPushButton {
+            background-color: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 6px 18px;
+            font-weight: 600;
+            font-size: 13px;
+            min-width: 72px;
+            min-height: 22px;
+        }
+        QDialog QPushButton:hover,
+        QMessageBox QPushButton:hover,
+        QDialogButtonBox QPushButton:hover {
+            background-color: #0284c7;
+            border-color: #38bdf8;
+            color: #ffffff;
+        }
+        QDialog QPushButton:pressed,
+        QMessageBox QPushButton:pressed,
+        QDialogButtonBox QPushButton:pressed {
+            background-color: #0369a1;
+        }
+        QDialog QPushButton:default,
+        QMessageBox QPushButton:default,
+        QDialogButtonBox QPushButton:default {
+            background-color: #0284c7;
+            border: 1px solid #38bdf8;
+            color: #ffffff;
+            font-weight: 700;
+        }
+        QDialog QPushButton:default:hover,
+        QMessageBox QPushButton:default:hover,
+        QDialogButtonBox QPushButton:default:hover {
+            background-color: #0369a1;
+            border-color: #7dd3fc;
+        }
+        QDialogButtonBox {
+            background-color: transparent;
         }
         QPushButton#btnPrimary {
             background-color: #0284c7;
@@ -2127,20 +2214,20 @@ void MainWindow::applyTheme() {
         QFrame#comboContainer,
         QComboBoxPrivateContainer {
             background-color: #0f172a;
-            border: 1px solid #38bdf8;
-            border-radius: 6px;
+            border: none;
         }
         QComboBox QAbstractItemView,
         QComboBox QListView {
-            background-color: transparent;
+            background-color: #0f172a;
             color: #f8fafc;
-            border: none;
+            border: 1px solid #38bdf8;
+            border-radius: 6px;
             padding: 4px;
             outline: none;
         }
         QComboBox QAbstractItemView::item,
         QComboBox QListView::item {
-            background-color: transparent;
+            background-color: #0f172a;
             color: #f8fafc;
             padding: 6px 12px;
             border-radius: 4px;

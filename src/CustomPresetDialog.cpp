@@ -78,20 +78,21 @@ void CustomPresetDialog::setupUi() {
             frame->setFrameShape(QFrame::NoFrame);
             frame->setLineWidth(0);
             frame->setContentsMargins(0, 0, 0, 0);
-            frame->setAttribute(Qt::WA_TranslucentBackground, true);
-            frame->setStyleSheet("QFrame#comboContainer { background-color: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; }");
+            frame->setAttribute(Qt::WA_TranslucentBackground, false);
+            frame->setStyleSheet("background-color: #0f172a; border: none;");
         }
 
         lv->setStyleSheet(R"(
             QListView {
-                background-color: transparent;
+                background-color: #0f172a;
                 color: #f8fafc;
-                border: none;
+                border: 1px solid #38bdf8;
+                border-radius: 6px;
                 padding: 4px;
                 outline: none;
             }
             QListView::item {
-                background-color: transparent;
+                background-color: #0f172a;
                 color: #f8fafc;
                 padding: 6px 12px;
                 border-radius: 4px;
