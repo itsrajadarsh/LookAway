@@ -44,13 +44,8 @@ $ErrorActionPreference = "Stop"
 # Determine directories
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptDir
-
-# If RepoRoot is a UNC path (e.g. \\vmware-host\Shared Folders...), resolve to mapped drive if available
-if ($RepoRoot.StartsWith("\\")) {
-    $currentLoc = (Get-Location).Path
-    if ($currentLoc -and -not $currentLoc.StartsWith("\\") -and (Test-Path (Join-Path $currentLoc "CMakeLists.txt"))) {
-        $RepoRoot = $currentLoc
-    }
+if ($RepoRoot.StartsWith("\\") -and ($PWD.Path -notlike "\\*") -and (Test-Path (Join-Path $PWD.Path "CMakeLists.txt"))) {
+    $RepoRoot = $PWD.Path
 }
 
 # Determine version (auto-extract from CMakeLists.txt if not specified)
@@ -163,11 +158,22 @@ Write-Host "  -> Inno Setup:  $isccPath" -ForegroundColor Gray
 
 # 2. Select Build Directory
 if (-not $BuildDir) {
-    # If running from network / VMware shared folder (\\vmware-host\...), default to local drive
+    $isNetworkDrive = $false
     if ($RepoRoot.StartsWith("\\")) {
+        $isNetworkDrive = $true
+    } elseif ($RepoRoot.Length -ge 2 -and $RepoRoot[1] -eq ":") {
+        $dl = $RepoRoot.Substring(0, 1)
+        $psDrive = Get-PSDrive -Name $dl -ErrorAction SilentlyContinue
+        if ($psDrive -and $psDrive.DisplayRoot) {
+            $isNetworkDrive = $true
+        }
+    }
+
+    # If running from network share or if C:\LookAwayBuildVM exists, default to local VM SSD
+    if ($isNetworkDrive -or (Test-Path "C:\LookAwayBuildVM")) {
         $BuildDir = "C:\LookAwayBuildVM"
-        Write-Host "[i] Detected VMware/Network shared folder ($RepoRoot)." -ForegroundColor Magenta
-        Write-Host "    Defaulting BuildDir to fast local drive: $BuildDir" -ForegroundColor Magenta
+        Write-Host "[i] Detected Virtual Machine / Network Shared Folder ($RepoRoot)." -ForegroundColor Magenta
+        Write-Host "    Defaulting BuildDir to fast local SSD drive: $BuildDir" -ForegroundColor Magenta
     } else {
         $BuildDir = Join-Path $RepoRoot "build-windows\Release"
     }
@@ -178,6 +184,23 @@ Write-Host "[+] Target Build Directory: $BuildDir" -ForegroundColor Green
 if ($Clean -and (Test-Path $BuildDir)) {
     Write-Host "[*] Cleaning build directory: $BuildDir" -ForegroundColor Yellow
     Remove-Item -Path $BuildDir -Recurse -Force
+}
+
+# Auto-heal stale CMakeCache.txt if paths changed
+$cacheFile = Join-Path $BuildDir "CMakeCache.txt"
+if (Test-Path $cacheFile) {
+    $cacheText = Get-Content $cacheFile -Raw -ErrorAction SilentlyContinue
+    if ($cacheText -match 'CMAKE_CACHEFILE_DIR:INTERNAL=(.+)') {
+        $cachedDir = $matches[1].Trim().Replace('/', '\')
+        if ($cachedDir -ne $BuildDir.Replace('/', '\')) {
+            Write-Warning "Detected stale CMakeCache.txt from a different path ($cachedDir). Resetting cache..."
+            Remove-Item $cacheFile -Force -ErrorAction SilentlyContinue
+            $cmakeFiles = Join-Path $BuildDir "CMakeFiles"
+            if (Test-Path $cmakeFiles) {
+                Remove-Item $cmakeFiles -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
 }
 
 if (-not (Test-Path $BuildDir)) {
