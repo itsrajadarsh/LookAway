@@ -61,19 +61,13 @@ Pre-compiled binaries for Windows and Linux are available on the [GitHub Release
 |:---:|:---:|
 | <img src="screenshots/01_dashboard.png" width="340" alt="LookAway Dashboard" /> | <img src="screenshots/02_analytics.png" width="340" alt="7-Day Adherence Analytics" /> |
 | *Active countdown, 20-20-20 preset, quick controls, and daily rest summary* | *7-day stacked adherence chart, habit streak badge, and clinical guidelines* |
-
-| 🔔 Alerts & Screen Flash | 🎵 Audio & Chime Themes |
-|:---:|:---:|
+| **🔔 Alerts & Screen Flash** | **🎵 Audio & Chime Themes** |
 | <img src="screenshots/03_alerts.png" width="340" alt="Alerts & Visuals" /> | <img src="screenshots/04_audio.png" width="340" alt="Audio & Sounds" /> |
 | *Break window styles, end-of-break screen flash, advance warning, and snooze timing* | *432Hz Zen Singing Bowl, master volume, and custom audio preview triggers* |
-
-| 🔕 Meeting & Presentation "Do Not Disturb" Mode | 🧘 Guided Break Window |
-|:---:|:---:|
+| **🔕 Meeting & Presentation "Do Not Disturb" Mode** | **🧘 Guided Break Window** |
 | <img src="screenshots/07_dnd_mode.png" width="340" alt="Do Not Disturb Focus Mode" /> | <img src="screenshots/06_break_overlay.png" width="340" alt="Guided Rest Reminder Card" /> |
 | *1-click break & audio suppression with live countdown banner for meetings and presentations* | *Rotating clinical eye relief exercises, countdown, and snooze controls* |
-
-| ⚙️ Preferences & Shortcuts | 👁️ System Tray Quick Controls |
-|:---:|:---:|
+| **⚙️ Preferences & Shortcuts** | **👁️ System Tray Quick Controls** |
 | <img src="screenshots/05_preferences.png" width="340" alt="Preferences & System Integration" /> | <img src="screenshots/08_tray_controls.png" width="340" alt="System Tray Quick Controls" /> |
 | *Global hotkeys, native Wayland idle engine, and custom interval profiles* | *Right-click tray menu with instant DND presets, snooze, pause, and settings* |
 
