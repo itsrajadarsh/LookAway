@@ -1,9 +1,16 @@
 ; Inno Setup Script for LookAway 20-20-20 Eye Care Utility
 #define MyAppName "LookAway"
-#define MyAppVersion "2.0.0"
+#define MyAppExeName "LookAway.exe"
 #define MyAppPublisher "itsrajadarsh"
 #define MyAppURL "https://github.com/itsrajadarsh/LookAway"
-#define MyAppExeName "LookAway.exe"
+
+#ifndef MyAppVersion
+  #define MyAppVersion "2.0.0"
+#endif
+
+#ifndef OutputBaseFilename
+  #define OutputBaseFilename "LookAway-Setup-v" + MyAppVersion
+#endif
 
 #ifndef SourceDir
   #define SourceDir "..\build-windows\Release"
@@ -22,13 +29,13 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\LookAway
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\app_icon.ico
 SetupIconFile=..\resources\icons\app_icon.ico
 WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=LookAway-Setup-v2.0.0
+OutputBaseFilename={#OutputBaseFilename}
 OutputDir={#OutputDir}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -42,11 +49,12 @@ Name: "autostart"; Description: "Automatically launch LookAway when Windows star
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "CMakeFiles,CMakeFiles\*,*.cxx.obj,*.cpp.obj,*.cpp,*.h,*.d,*.txt,*.cmake,*.lock,*.ninja,*.json,LookAway_autogen,LookAway_autogen\*"
+Source: "..\resources\icons\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "LookAway"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart

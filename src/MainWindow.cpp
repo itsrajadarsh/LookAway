@@ -16,6 +16,7 @@
 #include <QListView>
 #include <QFileDialog>
 #include <functional>
+#include <algorithm>
 
 MainWindow::MainWindow(TimerEngine* timerEngine, SettingsManager* settings, AudioManager* audioManager, QWidget* parent)
     : QMainWindow(parent),
@@ -27,7 +28,14 @@ MainWindow::MainWindow(TimerEngine* timerEngine, SettingsManager* settings, Audi
 
     setWindowIcon(QIcon(":/icons/app_icon.svg"));
     setWindowTitle("LookAway - 20-20-20 Eye Care");
-    setFixedSize(540, 750);
+    setMinimumSize(480, 520);
+
+    // Adapt window initial size to screen's available desktop work area (handles laptops, 720p/768p & fractional DPI)
+    QScreen* screen = QGuiApplication::primaryScreen();
+    QRect availGeo = screen ? screen->availableGeometry() : QRect(0, 0, 1024, 768);
+    int targetWidth = std::clamp(540, 480, std::max(480, availGeo.width() - 40));
+    int targetHeight = std::clamp(620, 520, std::max(520, availGeo.height() - 60));
+    resize(targetWidth, targetHeight);
 
     m_hotkeyManager = new GlobalHotkeyManager(m_settings, this);
     connect(m_hotkeyManager, &GlobalHotkeyManager::togglePauseResumeRequested, this, [this]() {
@@ -213,8 +221,20 @@ void MainWindow::setupUi() {
 }
 
 QWidget* MainWindow::createDashboardTab() {
-    QWidget* tab = new QWidget();
-    QVBoxLayout* layout = new QVBoxLayout(tab);
+    QScrollArea* scrollArea = new QScrollArea();
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setObjectName("dashboardScrollArea");
+    scrollArea->setStyleSheet("#dashboardScrollArea { background: transparent; border: none; }");
+
+    QWidget* tabContent = new QWidget();
+    tabContent->setObjectName("tabDashboardContent");
+    tabContent->setStyleSheet("#tabDashboardContent { background: transparent; }");
+    tabContent->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+    QVBoxLayout* layout = new QVBoxLayout(tabContent);
     layout->setContentsMargins(14, 14, 14, 14);
     layout->setSpacing(14);
 
@@ -469,7 +489,8 @@ QWidget* MainWindow::createDashboardTab() {
         m_timerEngine->skipBreak();
     });
 
-    return tab;
+    scrollArea->setWidget(tabContent);
+    return scrollArea;
 }
 
 void MainWindow::rebuildCustomPresetMenu() {

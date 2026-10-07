@@ -32,6 +32,8 @@
 param (
     [string]$BuildDir = "",
     [string]$QtDir = "",
+    [Alias("v")]
+    [string]$Version = "",
     [switch]$NoBuild,
     [switch]$SkipDeploy,
     [switch]$Clean
@@ -43,10 +45,33 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptDir
 
+# If RepoRoot is a UNC path (e.g. \\vmware-host\Shared Folders...), resolve to mapped drive if available
+if ($RepoRoot.StartsWith("\\")) {
+    $currentLoc = (Get-Location).Path
+    if ($currentLoc -and -not $currentLoc.StartsWith("\\") -and (Test-Path (Join-Path $currentLoc "CMakeLists.txt"))) {
+        $RepoRoot = $currentLoc
+    }
+}
+
+# Determine version (auto-extract from CMakeLists.txt if not specified)
+if (-not $Version) {
+    $cmakeFile = Join-Path $RepoRoot "CMakeLists.txt"
+    if (Test-Path $cmakeFile) {
+        $cmakeText = Get-Content $cmakeFile -Raw
+        if ($cmakeText -match 'project\s*\(\s*LookAway\s+VERSION\s+([0-9\.]+)') {
+            $Version = $matches[1]
+        }
+    }
+}
+if (-not $Version) {
+    $Version = "2.0.0"
+}
+
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "  LookAway Windows Packaging & Build Script" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "[+] Repository Root: $RepoRoot"
+Write-Host "[+] Target Version:  $Version"
 
 # 1. Environment & Tool Discovery
 Write-Host "`n[*] Discovering build tools and environment..." -ForegroundColor Yellow
@@ -218,13 +243,13 @@ if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 }
 
-Write-Host "Running: ISCC.exe /DSourceDir=`"$BuildDir`" /DOutputDir=`"$outputDir`" `"$issScript`"" -ForegroundColor Gray
-& $isccPath "/DSourceDir=$BuildDir" "/DOutputDir=$outputDir" "$issScript"
+Write-Host "Running: ISCC.exe /DSourceDir=`"$BuildDir`" /DOutputDir=`"$outputDir`" /DMyAppVersion=`"$Version`" `"$issScript`"" -ForegroundColor Gray
+& $isccPath "/DSourceDir=$BuildDir" "/DOutputDir=$outputDir" "/DMyAppVersion=$Version" "$issScript"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Inno Setup compilation failed!"
 }
 
-$installerExe = Join-Path $outputDir "LookAway-Setup-v2.0.0.exe"
+$installerExe = Join-Path $outputDir "LookAway-Setup-v$Version.exe"
 if (Test-Path $installerExe) {
     $sizeMB = [math]::Round((Get-Item $installerExe).Length / 1MB, 2)
     Write-Host "`n==========================================================" -ForegroundColor Green

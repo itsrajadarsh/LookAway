@@ -47,6 +47,28 @@ if(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
 endif()
 
+if(WIN32)
+    # Copy app_icon.ico and lookaway.rc into the binary directory
+    # This prevents any path-with-spaces or UNC path issues with windres / MinGW
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app_icon.ico"
+        "${CMAKE_CURRENT_BINARY_DIR}/app_icon.ico"
+        COPYONLY
+    )
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/lookaway.rc"
+        "${CMAKE_CURRENT_BINARY_DIR}/lookaway.rc"
+        COPYONLY
+    )
+    list(APPEND SOURCES "${CMAKE_CURRENT_BINARY_DIR}/lookaway.rc")
+
+    if(MINGW)
+        set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/lookaway.rc"
+            PROPERTIES COMPILE_FLAGS "--no-cpp"
+        )
+    endif()
+endif()
+
 add_executable(LookAway ${SOURCES})
 
 target_link_libraries(LookAway PRIVATE

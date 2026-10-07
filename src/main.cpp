@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QGuiApplication>
 #include <QCommandLineParser>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -9,9 +10,11 @@
 #include "MainWindow.h"
 
 int main(int argc, char *argv[]) {
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QApplication app(argc, argv);
     QApplication::setApplicationName("LookAway");
-    QApplication::setOrganizationName("LookAway");
+    QApplication::setOrganizationName("itsrajadarsh");
+    QApplication::setOrganizationDomain("github.com/itsrajadarsh");
     QApplication::setApplicationVersion("2.0.0");
     QApplication::setQuitOnLastWindowClosed(false);
 
