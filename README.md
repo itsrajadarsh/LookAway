@@ -72,14 +72,10 @@ Pre-compiled binaries for Windows and Linux are available on the [GitHub Release
 | <img src="screenshots/07_dnd_mode.png" width="340" alt="Do Not Disturb Focus Mode" /> | <img src="screenshots/06_break_overlay.png" width="340" alt="Guided Rest Reminder Card" /> |
 | *1-click break & audio suppression with live countdown banner for meetings and presentations* | *Rotating clinical eye relief exercises, countdown, and snooze controls* |
 
-<div align="center">
-
-| ⚙️ Preferences & Shortcuts |
-|:---:|
-| <img src="screenshots/05_preferences.png" width="360" alt="Preferences & System Integration" /> |
-| *Global hotkeys, native Wayland idle engine, and custom interval profiles* |
-
-</div>
+| ⚙️ Preferences & Shortcuts | 👁️ System Tray Quick Controls |
+|:---:|:---:|
+| <img src="screenshots/05_preferences.png" width="340" alt="Preferences & System Integration" /> | <img src="screenshots/08_tray_controls.png" width="340" alt="System Tray Quick Controls" /> |
+| *Global hotkeys, native Wayland idle engine, and custom interval profiles* | *Right-click tray menu with instant DND presets, snooze, pause, and settings* |
 
 ---
 
@@ -203,6 +199,11 @@ LookAway/
 ```
 
 ### System Tray Quick Controls
+
+<p align="center">
+  <img src="screenshots/08_tray_controls.png" width="280" alt="LookAway System Tray Quick Controls" />
+</p>
+
 Right-click the LookAway eye icon in your system tray to:
 * **Show Dashboard**
 * **Pause / Resume Timer**
